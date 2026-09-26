@@ -18,6 +18,7 @@ jobs:
           rm -rf .github app gradle build.gradle settings.gradle gradle.properties README-ANDROID.txt
           unzip -o VBDCP-Android-GitHub-Project.zip
           rm -f VBDCP-Android-GitHub-Project.zip
+          rm -f .github/workflows/build-apk.yml
 
       - name: Commit Android project
         run: |
