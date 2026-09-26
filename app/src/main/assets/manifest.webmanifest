@@ -1,0 +1,11 @@
+{
+  "name": "VBDCP Online Attendance",
+  "short_name": "VBDCP Attendance",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#1565c0",
+  "icons": [
+    {"src":"./logo.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}

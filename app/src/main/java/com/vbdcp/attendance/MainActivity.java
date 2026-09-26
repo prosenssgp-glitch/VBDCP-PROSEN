@@ -1,0 +1,187 @@
+package com.vbdcp.attendance;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.os.Environment;
+import androidx.core.content.FileProvider;
+import java.io.File;
+import android.net.Uri;
+import android.os.Bundle;
+import android.webkit.GeolocationPermissions;
+import android.webkit.JavascriptInterface;
+import android.webkit.MimeTypeMap;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.provider.Settings;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Locale;
+
+public class MainActivity extends Activity {
+    private static final int REQ_PERMS = 101;
+    private static final int FILE_CHOOSER = 102;
+    private WebView webView;
+    private ValueCallback<Uri[]> fileCallback;
+    private Uri cameraUri;
+
+    @Override public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        webView = new WebView(this);
+        setContentView(webView);
+        setupWebView();
+        requestAppPermissions();
+        webView.loadUrl("https://vbdcp.local/index.html");
+    }
+
+    private void setupWebView() {
+        WebSettings s = webView.getSettings();
+        s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true);
+        s.setGeolocationEnabled(true); s.setMediaPlaybackRequiresUserGesture(false);
+        s.setAllowFileAccess(true); s.setAllowContentAccess(true);
+        s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false);
+        s.setSupportZoom(false); s.setLoadsImagesAutomatically(true);
+        webView.setWebViewClient(new LocalAssetClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                    checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    callback.invoke(origin, true, false);
+                } else { callback.invoke(origin, false, false); }
+            }
+            @Override public void onPermissionRequest(final android.webkit.PermissionRequest request) {
+                runOnUiThread(() -> {
+                    if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        request.deny();
+                        return;
+                    }
+                    request.grant(new String[]{android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                });
+            }
+            @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
+                // VBDCP employee-photo inputs are camera-only: never show Gallery/File picker.
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = cb;
+                try {
+                    showCameraChoice();
+                } catch (Exception e) {
+                    fileCallback = null;
+                    cameraUri = null;
+                    cb.onReceiveValue(null);
+                }
+                return true;
+            }
+        });
+        webView.addJavascriptInterface(new NativeBridge(), "VBDCPNative");
+    }
+
+
+    private void showCameraChoice() {
+        final String[] choices = {"📷 Back Camera", "🤳 Front Camera"};
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("কর্মীর ছবি তুলুন")
+            .setItems(choices, (dialog, which) -> launchEmployeeCamera(which == 1))
+            .setNegativeButton("বাতিল", (dialog, which) -> {
+                if (fileCallback != null) { fileCallback.onReceiveValue(null); fileCallback = null; }
+            })
+            .show();
+    }
+
+    private void launchEmployeeCamera(boolean front) {
+        try {
+            Intent camera = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+            if (camera.resolveActivity(getPackageManager()) == null) throw new IllegalStateException("No camera app");
+            File dir = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "VBDCP");
+            if (!dir.exists() && !dir.mkdirs()) throw new IOException("Cannot create camera folder");
+            File photo = File.createTempFile("VBDCP_EMP_", ".jpg", dir);
+            cameraUri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", photo);
+            camera.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, cameraUri);
+            // Ask compatible camera apps to use the requested lens. Back is the default.
+            camera.putExtra("android.intent.extras.CAMERA_FACING", front ? 1 : 0);
+            camera.putExtra("android.intent.extra.USE_FRONT_CAMERA", front);
+            camera.putExtra("android.intent.extras.LENS_FACING", front ? 0 : 1);
+            camera.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(camera, FILE_CHOOSER);
+        } catch (Exception e) {
+            if (fileCallback != null) fileCallback.onReceiveValue(null);
+            fileCallback = null;
+            cameraUri = null;
+        }
+    }
+
+    private void requestAppPermissions() {
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            java.util.ArrayList<String> p = new java.util.ArrayList<>();
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.ACCESS_FINE_LOCATION);
+            if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+            if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.CAMERA);
+            if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.POST_NOTIFICATIONS);
+            if (!p.isEmpty()) requestPermissions(p.toArray(new String[0]), REQ_PERMS);
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == FILE_CHOOSER && fileCallback != null) {
+            Uri[] results = (resultCode == RESULT_OK && cameraUri != null) ? new Uri[]{cameraUri} : null;
+            fileCallback.onReceiveValue(results);
+            fileCallback = null;
+            cameraUri = null;
+        }
+    }
+
+    @Override public void onBackPressed() {
+        if (webView.canGoBack()) webView.goBack(); else super.onBackPressed();
+    }
+
+    private class NativeBridge {
+        @JavascriptInterface public void openAppSettings() {
+            try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch(Exception ignored) {}
+        }
+        @JavascriptInterface public void openWhatsAppGroup(String url) {
+            try {
+                if (url == null || url.trim().isEmpty()) return;
+                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url.trim()));
+                try {
+                    i.setPackage("com.whatsapp");
+                    startActivity(i);
+                } catch (Exception noWhatsApp) {
+                    i.setPackage(null);
+                    startActivity(i);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private static class LocalAssetClient extends WebViewClient {
+        @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            Uri u = request.getUrl();
+            if ("vbdcp.local".equalsIgnoreCase(u.getHost())) {
+                String path = u.getPath(); if (path == null || path.equals("/")) path = "/index.html";
+                if (path.startsWith("/")) path = path.substring(1);
+                try {
+                    InputStream in = view.getContext().getAssets().open(path);
+                    String mime = mime(path);
+                    return new WebResourceResponse(mime, "UTF-8", 200, "OK", null, in);
+                } catch (IOException ignored) {}
+            }
+            return super.shouldInterceptRequest(view, request);
+        }
+        private static String mime(String p) {
+            String ext = MimeTypeMap.getFileExtensionFromUrl(p).toLowerCase(Locale.US);
+            String m = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+            if (m != null) return m;
+            if (ext.equals("js")) return "application/javascript";
+            if (ext.equals("svg")) return "image/svg+xml";
+            if (ext.equals("webmanifest")) return "application/manifest+json";
+            return "text/plain";
+        }
+    }
+}
