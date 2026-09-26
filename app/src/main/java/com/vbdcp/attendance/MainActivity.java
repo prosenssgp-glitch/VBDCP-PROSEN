@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
         setContentView(webView);
         setupWebView();
         requestAppPermissions();
-        webView.loadUrl("https://vbdcp.local/index.html");
+        webView.loadUrl("https://tranquil-cupcake-5491f0.netlify.app");
     }
 
     private void setupWebView() {
