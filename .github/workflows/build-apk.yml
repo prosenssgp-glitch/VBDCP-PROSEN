@@ -24,7 +24,7 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build debug APK
+      - name: Build APK
         run: gradle :app:assembleDebug --no-daemon
 
       - name: Upload APK
