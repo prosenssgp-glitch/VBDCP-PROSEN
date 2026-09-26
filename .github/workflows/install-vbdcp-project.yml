@@ -1,0 +1,28 @@
+name: Install VBDCP Android Project
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract Android project
+        run: |
+          rm -rf .github app gradle build.gradle settings.gradle gradle.properties README-ANDROID.txt
+          unzip -o VBDCP-Android-GitHub-Project.zip
+          rm -f VBDCP-Android-GitHub-Project.zip
+
+      - name: Commit Android project
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Install VBDCP Android project" || echo "No changes to commit"
+          git push
