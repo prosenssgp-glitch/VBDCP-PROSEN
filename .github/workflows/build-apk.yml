@@ -5,9 +5,6 @@ on:
   push:
     branches: [ main ]
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,43 +19,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Create stable keystore
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.VBDCP_KEYSTORE_PASSWORD }}
-        run: |
-          if [ ! -f vbdcp-release.keystore ]; then
-            keytool -genkeypair \
-              -alias vbdcp \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -keystore vbdcp-release.keystore \
-              -storepass "$KEYSTORE_PASSWORD" \
-              -keypass "$KEYSTORE_PASSWORD" \
-              -dname "CN=VBDCP, OU=VBDCP, O=VBDCP, L=Kolkata, ST=West Bengal, C=IN"
-
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git add vbdcp-release.keystore
-            git commit -m "Add stable VBDCP signing keystore"
-            git push
-          fi
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Build APK
+      - name: Build Release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.VBDCP_KEYSTORE_PASSWORD }}
-        run: |
-          gradle :app:assembleRelease \
-            -PKEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
-            --no-daemon
+        run: gradle :app:assembleRelease --no-daemon
 
-      - name: Upload APK
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: VBDCP-release-apk
+          name: VBDCP-V58-release-apk
           path: app/build/outputs/apk/release/app-release.apk
