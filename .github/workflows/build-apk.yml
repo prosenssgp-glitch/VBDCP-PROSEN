@@ -24,6 +24,15 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Check signing keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.VBDCP_KEYSTORE_PASSWORD }}
+        run: |
+          keytool -list \
+            -keystore vbdcp-release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias vbdcp
+
       - name: Build Release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.VBDCP_KEYSTORE_PASSWORD }}
