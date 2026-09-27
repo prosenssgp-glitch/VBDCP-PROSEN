@@ -17,9 +17,9 @@ android {
     signingConfigs {
         release {
             storeFile file("../vbdcp-release.keystore")
-            storePassword project.findProperty("KEYSTORE_PASSWORD") ?: ""
+            storePassword System.getenv("KEYSTORE_PASSWORD")
             keyAlias "vbdcp"
-            keyPassword project.findProperty("KEYSTORE_PASSWORD") ?: ""
+            keyPassword System.getenv("KEYSTORE_PASSWORD")
         }
     }
 
