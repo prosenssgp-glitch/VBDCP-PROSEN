@@ -10,8 +10,24 @@ android {
         applicationId 'com.vbdcp.attendance'
         minSdk 23
         targetSdk 35
-        versionCode 5
-        versionName '1.4'
+        versionCode 6
+        versionName '1.5'
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("../vbdcp-release.keystore")
+            storePassword project.findProperty("KEYSTORE_PASSWORD") ?: ""
+            keyAlias "vbdcp"
+            keyPassword project.findProperty("KEYSTORE_PASSWORD") ?: ""
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
     }
 }
 
