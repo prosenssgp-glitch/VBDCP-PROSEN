@@ -4,12 +4,10 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.os.Environment;
-import androidx.core.content.FileProvider;
-import java.io.File;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
@@ -20,7 +18,11 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.provider.Settings;
+
+import androidx.core.content.FileProvider;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Locale;
@@ -29,25 +31,39 @@ public class MainActivity extends Activity {
     private static final int REQ_PERMS = 101;
     private static final int FILE_CHOOSER = 102;
     private WebView webView;
+    private SwipeRefreshLayout swipeRefresh;
     private ValueCallback<Uri[]> fileCallback;
     private Uri cameraUri;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        swipeRefresh = new SwipeRefreshLayout(this);
         webView = new WebView(this);
-        setContentView(webView);
+        swipeRefresh.addView(webView, new SwipeRefreshLayout.LayoutParams(-1, -1));
+        setContentView(swipeRefresh);
         setupWebView();
         requestAppPermissions();
-        webView.loadUrl("https://tranquil-cupcake-5491f0.netlify.app");
+        webView.loadUrl("https://tranquil-cupcake-5491f0.netlify.app/");
     }
 
     private void setupWebView() {
         WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true);
-        s.setGeolocationEnabled(true); s.setMediaPlaybackRequiresUserGesture(false);
-        s.setAllowFileAccess(true); s.setAllowContentAccess(true);
-        s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false);
-        s.setSupportZoom(false); s.setLoadsImagesAutomatically(true);
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true);
+        s.setGeolocationEnabled(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
+        s.setBuiltInZoomControls(false);
+        s.setDisplayZoomControls(false);
+        s.setSupportZoom(false);
+        s.setLoadsImagesAutomatically(true);
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+        swipeRefresh.setOnRefreshListener(() -> webView.reload());
+        swipeRefresh.setEnabled(true);
+
         webView.setWebViewClient(new LocalAssetClient());
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
@@ -56,6 +72,7 @@ public class MainActivity extends Activity {
                     callback.invoke(origin, true, false);
                 } else { callback.invoke(origin, false, false); }
             }
+
             @Override public void onPermissionRequest(final android.webkit.PermissionRequest request) {
                 runOnUiThread(() -> {
                     if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -65,8 +82,8 @@ public class MainActivity extends Activity {
                     request.grant(new String[]{android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE});
                 });
             }
+
             @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
-                // VBDCP employee-photo inputs are camera-only: never show Gallery/File picker.
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = cb;
                 try {
@@ -82,7 +99,6 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new NativeBridge(), "VBDCPNative");
     }
 
-
     private void showCameraChoice() {
         final String[] choices = {"📷 Back Camera", "🤳 Front Camera"};
         new android.app.AlertDialog.Builder(this)
@@ -90,8 +106,7 @@ public class MainActivity extends Activity {
             .setItems(choices, (dialog, which) -> launchEmployeeCamera(which == 1))
             .setNegativeButton("বাতিল", (dialog, which) -> {
                 if (fileCallback != null) { fileCallback.onReceiveValue(null); fileCallback = null; }
-            })
-            .show();
+            }).show();
     }
 
     private void launchEmployeeCamera(boolean front) {
@@ -101,9 +116,8 @@ public class MainActivity extends Activity {
             File dir = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "VBDCP");
             if (!dir.exists() && !dir.mkdirs()) throw new IOException("Cannot create camera folder");
             File photo = File.createTempFile("VBDCP_EMP_", ".jpg", dir);
-            cameraUri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", photo);
+            cameraUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", photo);
             camera.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, cameraUri);
-            // Ask compatible camera apps to use the requested lens. Back is the default.
             camera.putExtra("android.intent.extras.CAMERA_FACING", front ? 1 : 0);
             camera.putExtra("android.intent.extra.USE_FRONT_CAMERA", front);
             camera.putExtra("android.intent.extras.LENS_FACING", front ? 0 : 1);
@@ -111,8 +125,7 @@ public class MainActivity extends Activity {
             startActivityForResult(camera, FILE_CHOOSER);
         } catch (Exception e) {
             if (fileCallback != null) fileCallback.onReceiveValue(null);
-            fileCallback = null;
-            cameraUri = null;
+            fileCallback = null; cameraUri = null;
         }
     }
 
@@ -132,8 +145,7 @@ public class MainActivity extends Activity {
         if (requestCode == FILE_CHOOSER && fileCallback != null) {
             Uri[] results = (resultCode == RESULT_OK && cameraUri != null) ? new Uri[]{cameraUri} : null;
             fileCallback.onReceiveValue(results);
-            fileCallback = null;
-            cameraUri = null;
+            fileCallback = null; cameraUri = null;
         }
     }
 
@@ -145,22 +157,42 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void openAppSettings() {
             try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch(Exception ignored) {}
         }
-        @JavascriptInterface public void openWhatsAppGroup(String url) {
-            try {
-                if (url == null || url.trim().isEmpty()) return;
-                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url.trim()));
-                try {
-                    i.setPackage("com.whatsapp");
-                    startActivity(i);
-                } catch (Exception noWhatsApp) {
-                    i.setPackage(null);
-                    startActivity(i);
-                }
-            } catch (Exception ignored) {}
-        }
+        @JavascriptInterface public void openWhatsAppGroup(String url) { openExternalUrl(url); }
     }
 
-    private static class LocalAssetClient extends WebViewClient {
+    private void openExternalUrl(String raw) {
+        try {
+            if (raw == null || raw.trim().isEmpty()) return;
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(raw.trim()));
+            if (raw.startsWith("whatsapp:")) i.setPackage("com.whatsapp");
+            try { startActivity(i); } catch (Exception e) {
+                i.setPackage(null);
+                startActivity(i);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private class LocalAssetClient extends WebViewClient {
+        @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            Uri u=request.getUrl(); String scheme=u.getScheme();
+            if (scheme != null && !scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https") && !scheme.equalsIgnoreCase("about")) {
+                openExternalUrl(u.toString());
+                return true;
+            }
+            return false;
+        }
+        @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            Uri u=Uri.parse(url); String scheme=u.getScheme();
+            if (scheme != null && !scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https") && !scheme.equalsIgnoreCase("about")) {
+                openExternalUrl(url);
+                return true;
+            }
+            return false;
+        }
+        @Override public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view,url);
+            if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
+        }
         @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             Uri u = request.getUrl();
             if ("vbdcp.local".equalsIgnoreCase(u.getHost())) {
@@ -168,20 +200,15 @@ public class MainActivity extends Activity {
                 if (path.startsWith("/")) path = path.substring(1);
                 try {
                     InputStream in = view.getContext().getAssets().open(path);
-                    String mime = mime(path);
-                    return new WebResourceResponse(mime, "UTF-8", 200, "OK", null, in);
+                    return new WebResourceResponse(mime(path), "UTF-8", 200, "OK", null, in);
                 } catch (IOException ignored) {}
             }
             return super.shouldInterceptRequest(view, request);
         }
-        private static String mime(String p) {
-            String ext = MimeTypeMap.getFileExtensionFromUrl(p).toLowerCase(Locale.US);
-            String m = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
-            if (m != null) return m;
-            if (ext.equals("js")) return "application/javascript";
-            if (ext.equals("svg")) return "image/svg+xml";
-            if (ext.equals("webmanifest")) return "application/manifest+json";
-            return "text/plain";
+        private String mime(String p) {
+            String ext=MimeTypeMap.getFileExtensionFromUrl(p).toLowerCase(Locale.US);
+            String m=MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+            if(m!=null)return m; if(ext.equals("js"))return "application/javascript"; if(ext.equals("svg"))return "image/svg+xml"; if(ext.equals("webmanifest"))return "application/manifest+json"; return "text/plain";
         }
     }
 }
