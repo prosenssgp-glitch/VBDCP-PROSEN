@@ -3,6 +3,12 @@ package com.vbdcp.attendance;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.ContentValues;
+import android.os.Build;
+import android.util.Base64;
+import android.provider.MediaStore;
+import java.io.OutputStream;
+import java.io.FileOutputStream;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -152,6 +158,7 @@ public class MainActivity extends Activity {
             if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.ACCESS_COARSE_LOCATION);
             if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.CAMERA);
             if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.POST_NOTIFICATIONS);
+            if (android.os.Build.VERSION.SDK_INT <= 28 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             if (!p.isEmpty()) {
                 appPermissionsRequestInFlight = true;
                 requestPermissions(p.toArray(new String[0]), REQ_PERMS);
@@ -198,6 +205,39 @@ public class MainActivity extends Activity {
     }
 
     private class NativeBridge {
+
+        @JavascriptInterface public String saveFieldPhotoToGallery(String base64, String fileName) {
+            try {
+                if (base64 == null || base64.isEmpty()) return "ERROR:ছবির ডেটা খালি";
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                String safeName = (fileName == null ? "VBDCP_" + System.currentTimeMillis() + ".jpg" : fileName.replaceAll("[^A-Za-z0-9._-]", "_"));
+                if (!safeName.toLowerCase(Locale.US).endsWith(".jpg")) safeName += ".jpg";
+                if (Build.VERSION.SDK_INT >= 29) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Images.Media.DISPLAY_NAME, safeName);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                    values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/VBDCP");
+                    values.put(MediaStore.Images.Media.IS_PENDING, 1);
+                    Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                    if (uri == null) return "ERROR:Gallery-তে ছবি তৈরি করা যায়নি";
+                    try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                        if (out == null) throw new IOException("ছবির ফাইল খোলা যায়নি");
+                        out.write(bytes);
+                    }
+                    ContentValues done = new ContentValues();
+                    done.put(MediaStore.Images.Media.IS_PENDING, 0);
+                    getContentResolver().update(uri, done, null, null);
+                    return uri.toString();
+                }
+                if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) return "ERROR:Storage permission দিন";
+                File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "VBDCP");
+                if (!dir.exists() && !dir.mkdirs()) return "ERROR:Gallery folder তৈরি হয়নি";
+                File image = new File(dir, safeName);
+                try (FileOutputStream out = new FileOutputStream(image)) { out.write(bytes); }
+                sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(image)));
+                return Uri.fromFile(image).toString();
+            } catch (Exception e) { return "ERROR:" + (e.getMessage() == null ? "Gallery save failed" : e.getMessage()); }
+        }
         @JavascriptInterface public void openAppSettings() {
             try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch(Exception ignored) {}
         }
