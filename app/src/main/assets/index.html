@@ -924,7 +924,7 @@ const firebaseConfig = {
   measurementId: "G-FB7EPDF91M"
 };
 const app=initializeApp(firebaseConfig),db=getFirestore(app),auth=getAuth(app);
-const authReady=signInAnonymously(auth).then(r=>{setTimeout(()=>updateConnectionStatus('firebase-ok'),0);return r;}).catch(e=>{console.error("Anonymous sign-in failed:",e);setTimeout(()=>window.showFirebaseProblem?.("Firebase সংযোগ পাওয়া যাচ্ছে না। আপনার ফোনের ডেটা ফোনেই নিরাপদে Save থাকবে; Internet ঠিক হলে আবার Sync হবে।",e),0);throw e;});
+const authReady=signInAnonymously(auth).then(r=>r).catch(e=>{console.error("Anonymous sign-in failed:",e);setTimeout(()=>window.showFirebaseProblem?.("Firebase সংযোগ পাওয়া যাচ্ছে না। আপনার ফোনের ডেটা ফোনেই নিরাপদে Save থাকবে; Internet ঠিক হলে আবার Sync হবে।",e),0);throw e;});
 window.db=db;window.authReady=authReady;window.collection=collection;window.addDoc=addDoc;window.getDocs=getDocs;window.doc=doc;window.setDoc=setDoc;window.updateDoc=updateDoc;window.deleteDoc=deleteDoc;window.onSnapshot=onSnapshot;window.query=query;window.where=where;
 const $=id=>document.getElementById(id);
 const WORKERS=["লালন পাল","প্রতুল দলুই","লাল টুডু","সুভাষ দাস","সৌতম দাস","সুকুমার রানা"]; window.WORKERS=WORKERS;
