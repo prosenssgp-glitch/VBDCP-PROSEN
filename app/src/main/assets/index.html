@@ -3180,7 +3180,25 @@ if('serviceWorker' in navigator){
     }catch(e){console.error(e);status('❌ ছবি তোলা যায়নি: '+(e?.message||e),'error')}
   };
   window.switchFieldCamera=async function(){fieldFacing=fieldFacing==='environment'?'user':'environment';try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status(fieldFacing==='user'?'🤳 Front Camera চালু হয়েছে।':'📷 Back Camera চালু হয়েছে।','success')}catch(e){status('❌ Camera বদলানো যায়নি: '+(e?.message||e),'error')}};
-  window.openFieldCamera=function(){if(cameraOpen)return;loadStoredFieldPhotos();cameraOpen=true;fieldCameraScrollY=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=`-${fieldCameraScrollY}px`;document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';$('fieldCameraModal')?.classList.add('open');$('fieldCameraModal')?.setAttribute('aria-hidden','false');renderFieldPhotos();updateFieldCameraModeUI();status('📷 Camera চালু হচ্ছে… Capture চাপুন।','status');setTimeout(async()=>{if(!cameraOpen)return;try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status('📷 Camera চালু। Capture চাপুন।','success')}catch(e){status('❌ Camera permission দিন: '+(e?.message||e),'error')}},50)};
+  window.openFieldCamera=function(){
+    // Use Android's native camera through the WebView file chooser; never start WebRTC preview.
+    let input=$('fieldNativeCaptureInput');
+    if(!input){
+      input=document.createElement('input');input.type='file';input.id='fieldNativeCaptureInput';
+      input.accept='image/*';input.setAttribute('capture','environment');input.hidden=true;
+      document.body.appendChild(input);
+      input.addEventListener('change',async()=>{
+        const file=input.files&&input.files[0];input.value='';
+        if(!file)return;
+        if(!file.type||!file.type.startsWith('image/')){status('❌ ছবির ফাইলটি সঠিক নয়।','error');return;}
+        try{
+          status('📍 ছবির সঙ্গে GPS তথ্য যোগ হচ্ছে…','status');
+          await processFieldBlob('gps',file,{capturedAt:new Date()});
+        }catch(e){console.error(e);status('❌ ছবি যোগ করা যায়নি: '+(e&&e.message?e.message:e),'error');}
+      });
+    }
+    input.click();
+  };
   window.closeFieldCamera=function(){if(!cameraOpen)return;cameraOpen=false;stopGpsWatch();stopStream(fieldStream);fieldStream=null;if($('fieldCameraVideo'))$('fieldCameraVideo').srcObject=null;$('fieldCameraModal')?.classList.remove('open');$('fieldCameraModal')?.setAttribute('aria-hidden','true');document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';window.scrollTo(0,fieldCameraScrollY)};
 
   window.openWorkerCamera=function(){
