@@ -2316,7 +2316,7 @@ window.renderAdmin=()=>{
   const workerLabel=selectedWorker==="__ALL__"?"সব কর্মী":selectedWorker;
   document.getElementById("adminSummary").innerHTML=`<b>Admin Attendance Summary</b><br><span>${escA(workerLabel)}</span><br>🟢 Present: ${present} &nbsp; | &nbsp; 🔴 Absent: ${absent}`;
   document.getElementById("adminCount").textContent="দেখানো হচ্ছে: "+rows.length+"টি";
-  document.querySelector("#adminTable thead tr").innerHTML='<th class="admin-select-cell"><input type="checkbox" id="adminSelectAll" title="সব নির্বাচন"></th><th>স্ট্যাটাস</th><th>তারিখ</th><th>সময়</th><th>কর্মী</th><th>শুরু সময়</th><th>ঠিকানা</th><th>মন্তব্য</th><th>ছবি</th><th>অ্যাকশন</th>';
+  document.querySelector("#adminTable thead tr").innerHTML='<th class="admin-select-cell"><input type="checkbox" id="adminSelectAll" title="সব নির্বাচন"></th><th>স্ট্যাটাস</th><th>তারিখ</th><th>Submit সময়</th><th>কর্মী</th><th>শুরু সময়</th><th>কাজের সময়কাল</th><th>ঠিকানা</th><th>মন্তব্য</th><th>ছবি</th><th>অ্যাকশন</th>';
   document.querySelector("#adminTable tbody").innerHTML=rows.map((r,i)=>{
     const status=r.isAbsent?'❌ ABSENT':'✅ PRESENT';
     const checkbox=r.isAbsent?'—':`<input type="checkbox" class="admin-row-check" data-id="${escA(r.id)}" onchange="toggleAdminRow(this)">`;
@@ -2325,13 +2325,15 @@ window.renderAdmin=()=>{
       : `<div class="admin-action-stack"><button type="button" class="secondary" onclick="editAttendance('${encodeURIComponent(r.id)}')">✏️ Edit</button><button type="button" class="danger-btn" onclick="deleteAttendance('${encodeURIComponent(r.id)}')">🗑️ Delete</button></div>`;
     const noteCell=r.isAbsent?'<span class="absent-note">✕</span>':escA(r.note||'—');
     const startName=escA(r.startPlaceName||r.startVillage||'GPS এলাকা');
+    const durationMs=(()=>{const start=Date.parse(r.workStartAt||'');const end=Date.parse(r.createdAt||'');return Number.isFinite(start)&&Number.isFinite(end)&&end>=start?end-start:null})();
+    const durationCell=durationMs==null?'—':(()=>{const mins=Math.floor(durationMs/60000),hours=Math.floor(mins/60),rem=mins%60;return hours?hours+' ঘণ্টা '+rem+' মিনিট':rem+' মিনিট'})();
     const submitName=escA(r.submitPlaceName||r.submitVillage||'GPS এলাকা');
     const startCoord=(r.startLatitude!=null&&r.startLongitude!=null)?`${Number(r.startLatitude).toFixed(6)}, ${Number(r.startLongitude).toFixed(6)}`:'—';
     const submitCoord=(r.latitude!=null&&r.longitude!=null)?`${Number(r.latitude).toFixed(6)}, ${Number(r.longitude).toFixed(6)}`:'—';
     const km=r.locationDistanceKm!=null?Number(r.locationDistanceKm).toFixed(2):(r.locationDistanceMeters!=null?(Number(r.locationDistanceMeters)/1000).toFixed(2):'—');
     const gpsCell=r.isAbsent?escA(r.address||'—'):`<span class="admin-gps-line"><span class="admin-gps-label">Start:</span> ${startName}</span><span class="admin-gps-coord">${startCoord}</span><span class="admin-gps-line"><span class="admin-gps-label">Submit:</span> ${submitName}</span><span class="admin-gps-coord">${submitCoord}</span><span class="admin-gps-distance">দূরত্ব: ${km} km</span><span style="display:block;margin-top:2px;color:#aebdc7;font-size:8px">${escA(r.address||'')}</span>`;
-    return `<tr data-admin-row-id="${r.isAbsent?'':escA(r.id)}"><td class="admin-select-cell">${checkbox}</td><td>${status}</td><td>${escA(r.date)}</td><td>${escA(r.time)}</td><td>${escA(r.worker)}</td><td>${escA(r.workStartTime||"—")}</td><td class="admin-gps-cell">${gpsCell}</td><td class="admin-note-cell ${r.isAbsent?'absent-note':''}">${noteCell}</td><td>${r.photoData?`<img src="${r.photoData}" alt="photo">`:"—"}</td><td>${action}</td></tr>`;
-  }).join("")||'<tr><td colspan="10">কোনো তথ্য নেই</td></tr>';
+    return `<tr data-admin-row-id="${r.isAbsent?'':escA(r.id)}"><td class="admin-select-cell">${checkbox}</td><td>${status}</td><td>${escA(r.date)}</td><td>${escA(r.time)}</td><td>${escA(r.worker)}</td><td>${escA(r.workStartTime||"—")}</td><td>${durationCell}</td><td class="admin-gps-cell">${gpsCell}</td><td class="admin-note-cell ${r.isAbsent?'absent-note':''}">${noteCell}</td><td>${r.photoData?`<img src="${r.photoData}" alt="photo">`:"—"}</td><td>${action}</td></tr>`;
+  }).join("")||'<tr><td colspan="11">কোনো তথ্য নেই</td></tr>';
   const selectAll=document.getElementById("adminSelectAll");
   if(selectAll)selectAll.onchange=()=>{document.querySelectorAll(".admin-row-check").forEach(c=>{c.checked=selectAll.checked;toggleAdminRow(c)});};
 };
