@@ -30,10 +30,13 @@ import java.util.Locale;
 public class MainActivity extends Activity {
     private static final int REQ_PERMS = 101;
     private static final int FILE_CHOOSER = 102;
+    private static final int REQ_CAMERA_PERMISSION = 103;
     private WebView webView;
     private SwipeRefreshLayout swipeRefresh;
     private ValueCallback<Uri[]> fileCallback;
     private Uri cameraUri;
+    private android.webkit.PermissionRequest pendingCameraRequest;
+    private boolean appPermissionsRequestInFlight = false;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -75,11 +78,20 @@ public class MainActivity extends Activity {
 
             @Override public void onPermissionRequest(final android.webkit.PermissionRequest request) {
                 runOnUiThread(() -> {
-                    if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                        request.deny();
+                    if (android.os.Build.VERSION.SDK_INT < 23 ||
+                        checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[]{android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE});
                         return;
                     }
-                    request.grant(new String[]{android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+
+                    // Keep the WebView request alive while Android asks for camera permission.
+                    if (pendingCameraRequest != null && pendingCameraRequest != request) {
+                        pendingCameraRequest.deny();
+                    }
+                    pendingCameraRequest = request;
+                    if (!appPermissionsRequestInFlight) {
+                        requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA_PERMISSION);
+                    }
                 });
             }
 
@@ -136,7 +148,26 @@ public class MainActivity extends Activity {
             if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.ACCESS_COARSE_LOCATION);
             if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.CAMERA);
             if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) p.add(Manifest.permission.POST_NOTIFICATIONS);
-            if (!p.isEmpty()) requestPermissions(p.toArray(new String[0]), REQ_PERMS);
+            if (!p.isEmpty()) {
+                appPermissionsRequestInFlight = true;
+                requestPermissions(p.toArray(new String[0]), REQ_PERMS);
+            }
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_PERMS || requestCode == REQ_CAMERA_PERMISSION) {
+            appPermissionsRequestInFlight = false;
+            if (pendingCameraRequest != null) {
+                android.webkit.PermissionRequest request = pendingCameraRequest;
+                pendingCameraRequest = null;
+                if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    request.grant(new String[]{android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                } else {
+                    request.deny();
+                }
+            }
         }
     }
 
