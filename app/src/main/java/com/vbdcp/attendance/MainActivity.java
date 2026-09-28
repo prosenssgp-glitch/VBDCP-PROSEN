@@ -64,7 +64,8 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setSupportZoom(false);
         s.setLoadsImagesAutomatically(true);
-        s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // Always revalidate remote Netlify content so deployed web fixes appear on next app launch/reload.
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
         swipeRefresh.setOnRefreshListener(() -> webView.reload());
         swipeRefresh.setEnabled(true);
@@ -89,6 +90,11 @@ public class MainActivity extends Activity {
 
             @Override public void onPermissionRequest(final android.webkit.PermissionRequest request) {
                 runOnUiThread(() -> {
+                    Uri requestOrigin = request.getOrigin();
+                    if (requestOrigin == null || !"tranquil-cupcake-5491f0.netlify.app".equalsIgnoreCase(requestOrigin.getHost())) {
+                        request.deny();
+                        return;
+                    }
                     if (android.os.Build.VERSION.SDK_INT < 23 ||
                         checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                         request.grant(new String[]{android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE});
