@@ -3246,3 +3246,25 @@ function stopStream(stream){if(stream){stream.getTracks().forEach(t=>{try{t.stop
 }
 #selectedWorkerDisplay {animation:none!important;transition:none!important}
 </style>
+
+<style id="vbdcp-neutral-worker-placeholder-final">
+/* Keep the initial worker placeholder from flashing pink during app startup. */
+#selectedWorkerDisplay,
+#selectedWorkerDisplay:active,
+#selectedWorkerDisplay:focus,
+#selectedWorkerDisplay:focus-visible,
+#selectedWorkerDisplay.touch-active,
+#selectedWorkerDisplay.worker-selected-locked,
+#selectedWorkerDisplay.worker-selected-unlocked {
+  background:linear-gradient(145deg,#24384a,#0c141c)!important;
+  border:1px solid #4a6b80!important;
+  color:#fff!important;
+  box-shadow:inset 2px 2px 5px #6b8fa844,inset -3px -3px 8px #000,0 5px 12px #000!important;
+  text-shadow:none!important;
+  filter:none!important;
+  transform:none!important;
+  animation:none!important;
+  transition:none!important;
+  outline:none!important;
+}
+</style>
