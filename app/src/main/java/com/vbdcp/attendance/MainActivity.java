@@ -4,6 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.ContentValues;
+import android.content.ClipData;
+import org.json.JSONArray;
+import java.util.ArrayList;
 import android.os.Build;
 import android.util.Base64;
 import android.provider.MediaStore;
@@ -237,6 +240,28 @@ public class MainActivity extends Activity {
                 sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(image)));
                 return Uri.fromFile(image).toString();
             } catch (Exception e) { return "ERROR:" + (e.getMessage() == null ? "Gallery save failed" : e.getMessage()); }
+        }
+        @JavascriptInterface public void shareGalleryPhotos(String uriJson) {
+            try {
+                JSONArray values = new JSONArray(uriJson);
+                final ArrayList<Uri> uris = new ArrayList<>();
+                for (int i = 0; i < values.length(); i++) {
+                    String value = values.optString(i, "");
+                    if (value.startsWith("content://")) uris.add(Uri.parse(value));
+                }
+                if (uris.isEmpty()) return;
+                runOnUiThread(() -> {
+                    Intent send = new Intent(Intent.ACTION_SEND_MULTIPLE);
+                    send.setType("image/jpeg");
+                    send.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+                    send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    ClipData clip = ClipData.newUri(getContentResolver(), "VBDCP work photos", uris.get(0));
+                    for (int i = 1; i < uris.size(); i++) clip.addItem(new ClipData.Item(uris.get(i)));
+                    send.setClipData(clip);
+                    send.putExtra(Intent.EXTRA_TEXT, "VBDCP কাজের ছবি");
+                    startActivity(Intent.createChooser(send, "ছবি Share করুন"));
+                });
+            } catch (Exception e) { android.util.Log.e("VBDCP", "Photo share failed", e); }
         }
         @JavascriptInterface public void openAppSettings() {
             try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch(Exception ignored) {}
