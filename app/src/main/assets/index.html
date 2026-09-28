@@ -823,6 +823,34 @@ button:active {transition:transform .04s ease!important}
  button:hover {filter:none!important;transform:none!important}
 }
 </style>
+
+<style id="vbdcp-disable-longpress-selection">
+/* Prevent Android WebView text selection/callout when users long-press app UI. */
+html,body,body *:not(input):not(textarea):not([contenteditable="true"]) {
+  -webkit-user-select:none!important;
+  user-select:none!important;
+  -webkit-touch-callout:none!important;
+  -webkit-tap-highlight-color:transparent;
+}
+button, a, label, select, option, .menu3, .card, .panel, .worker-option-name-btn {
+  -webkit-user-select:none!important;
+  user-select:none!important;
+  -webkit-touch-callout:none!important;
+  touch-action:manipulation;
+}
+input,textarea,[contenteditable="true"] {
+  -webkit-user-select:text;
+  user-select:text;
+  -webkit-touch-callout:default;
+}
+</style>
+<script id="vbdcp-disable-longpress-context-menu">
+document.addEventListener('contextmenu',function(e){
+  if(e.target && e.target.closest && e.target.closest('input,textarea,[contenteditable="true"]')) return;
+  e.preventDefault();
+},true);
+</script>
+
 </head><body data-vbdcp-version="v51-final-direct-camera">
 <header><div class="brand"><div class="vbdcp-title-wrap"><img src="mosquito-red.svg" class="title-mosquito" alt="Mosquito"><div><h2><span class="vbdcp-color-title">VBDCP</span></h2><div>Online Attendance App</div></div><img src="mosquito-red.svg" class="title-mosquito flip" alt="Mosquito"></div></div></header><div id="connectionStatus" class="connection-status" aria-live="polite"></div><main>
 <div class="card"><div class="menu3" id="mainMenu"><button data-tab="attendance" onclick="showTab('attendance')">👷 কর্মীর Attendance</button><button class="secondary" data-tab="workerDashboard" onclick="showTab('workerDashboard')">📊 কর্মীর Dashboard</button><button class="secondary" data-tab="adminLogin" onclick="showTab('adminLogin')">🔐 Admin Login</button></div></div>
