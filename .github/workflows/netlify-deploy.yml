@@ -1,0 +1,26 @@
+name: Deploy VBDCP web app to Netlify
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Deploy production site when Netlify credentials are configured
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::warning::Netlify deployment skipped. Configure repository Actions secrets NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID."
+            exit 0
+          fi
+          npx --yes netlify-cli@latest deploy --prod --dir app/src/main/assets --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN"
