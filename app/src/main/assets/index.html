@@ -815,7 +815,7 @@ label.label-invalid{color:#ff6868!important}
 <header><div class="brand"><div class="vbdcp-title-wrap"><img src="mosquito-red.svg" class="title-mosquito" alt="Mosquito"><div><h2><span class="vbdcp-color-title">VBDCP</span></h2><div>Online Attendance App</div></div><img src="mosquito-red.svg" class="title-mosquito flip" alt="Mosquito"></div></div></header><div id="connectionStatus" class="connection-status" aria-live="polite"></div><main>
 <div class="card"><div class="menu3" id="mainMenu"><button data-tab="attendance" onclick="showTab('attendance')">👷 কর্মীর Attendance</button><button class="secondary" data-tab="workerDashboard" onclick="showTab('workerDashboard')">📊 কর্মীর Dashboard</button><button class="secondary" data-tab="adminLogin" onclick="showTab('adminLogin')">🔐 Admin Login</button></div></div>
 <section id="attendance"><div class="card attendance-card">
-<div class="today-attendance-title-row"><h3 class="today-attendance-title">Today Attendance</h3><button type="button" class="today-camera-btn" onclick="openFieldCamera()" aria-label="কাজের ছবি ক্যামেরা">📷</button></div>
+<div class="today-attendance-title-row"><h3 class="today-attendance-title">Today Attendance</h3></div>
 <div class="selected-worker-display" id="selectedWorkerDisplay">কর্মীর নাম নির্বাচন করুন</div>
 <div class="worker-control-row">
   <div class="worker-picker-wrap worker-picker-left">
@@ -844,10 +844,10 @@ label.label-invalid{color:#ff6868!important}
 <label>কর্মীর ছবি <span class="required-mark">*</span></label>
 <div class="worker-photo-capture-box">
   <button type="button" class="worker-camera-open" onclick="openWorkerCamera()">📷 কর্মীর ছবি তুলুন</button>
-  <div class="worker-camera-note">শুধু ফোনের Front / Back Camera দিয়ে ছবি তুলতে হবে। Gallery থেকে ছবি নেওয়া যাবে না।</div>
+  <div class="worker-camera-note">ফোনের নিজস্ব Camera খুলবে। Front/Back ফোনের Camera থেকেই বেছে নিন। এই ছবিতে GPS লাগবে না।</div>
   <div id="workerPhotoPreview" class="worker-photo-preview"></div>
 </div>
-<input id="photo" type="file" accept="image/*" hidden aria-hidden="true">
+<input id="photo" type="file" accept="image/*" capture="environment" hidden aria-hidden="true">
 <div class="date-time-row"><div class="date-time-item"><label>তারিখ</label><input id="date" type="hidden"><input id="dateDisplay" type="text" readonly aria-readonly="true"></div><div class="date-time-item"><label>সময়</label><input id="time" type="text" readonly aria-readonly="true"></div></div>
 <label>পাড়া / অতিরিক্ত লোকেশন (ঐচ্ছিক)</label><textarea id="note" rows="1" placeholder=""></textarea>
 <div class="gps-actions"><button type="button" class="secondary" onclick="openLiveMap()">🗺️ Live Map</button></div><div id="gps" class="status">GPS চালু হচ্ছে...</div>
@@ -865,37 +865,6 @@ label.label-invalid{color:#ff6868!important}
     <div id="appNoticeTitle" class="app-notice-title">Notice</div>
     <div id="appNoticeText" class="app-notice-text"></div>
     <div class="app-notice-actions"><button type="button" onclick="closeAppNotice()">ঠিক আছে</button></div>
-  </div>
-</div>
-<div id="workerCameraModal" class="field-camera-modal" aria-hidden="true">
-  <div class="field-camera-dialog worker-camera-dialog">
-    <div class="field-camera-head"><div><b>📷 কর্মীর ছবি</b></div><button type="button" class="field-camera-close" onclick="closeWorkerCamera()">✕</button></div>
-    <video id="workerCameraVideo" class="worker-camera-video" autoplay playsinline muted></video>
-    <canvas id="workerCameraCanvas" class="hidden"></canvas>
-    <div class="worker-camera-actions">
-       <button type="button" class="field-send-btn" onclick="takeWorkerPhoto()">📸 ছবি তুলুন</button>
-    </div>
-    <div id="workerCameraStatus" class="status">ক্যামেরা চালু হচ্ছে…</div>
-  </div>
-</div>
-<div id="fieldCameraModal" class="field-camera-modal" aria-hidden="true">
-  <div class="field-camera-dialog">
-    <div class="field-camera-head"><div><b>📷 কাজের ছবি</b></div><button type="button" class="field-camera-close" onclick="closeFieldCamera()">✕</button></div>
-    <div class="gps-preview-stage">
-      <video id="fieldCameraVideo" class="worker-camera-video" autoplay playsinline muted></video>
-      <div id="gpsLiveOverlay" class="gps-live-overlay hidden">
-        <div id="gpsLiveDate" class="gps-live-date">Date: — | Time: —</div>
-        <div id="gpsLiveCoords" class="gps-live-coords">Lat: — | Long: —</div>
-      </div>
-    </div>
-    <div class="field-camera-toolbar">
-      <button type="button" id="fieldGpsModeBtn" onclick="selectFieldCamera('gps')">📍 GPS Camera (GPS বাধ্যতামূলক)</button>
-      <button type="button" class="field-capture-btn" onclick="captureFieldPhoto()">📸 Capture</button>
-    </div>
-    <div id="fieldCameraStatus" class="status">📷 সরাসরি Camera দিয়ে ছবি তুলুন।</div>
-    <div class="field-camera-count-row"><b>মোট ছবি: <span id="fieldCameraCount">0</span></b><span>একবারে একটি ছবি তুলে যত খুশি যোগ করতে পারবেন</span></div>
-    <div id="fieldPhotoGrid" class="field-photo-grid"></div>
-    <div class="field-camera-actions"><button type="button" onclick="captureFieldPhoto()">➕ আরও ছবি</button><button type="button" class="field-send-btn" onclick="sendFieldPhotosToWhatsApp()">📤 Send Photos</button></div>
   </div>
 </div>
 <div id="workerMessageModal" class="worker-message-modal hidden">
@@ -3214,26 +3183,28 @@ if('serviceWorker' in navigator){
   window.openFieldCamera=function(){if(cameraOpen)return;loadStoredFieldPhotos();cameraOpen=true;fieldCameraScrollY=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=`-${fieldCameraScrollY}px`;document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';$('fieldCameraModal')?.classList.add('open');$('fieldCameraModal')?.setAttribute('aria-hidden','false');renderFieldPhotos();updateFieldCameraModeUI();status('📷 Camera চালু হচ্ছে… Capture চাপুন।','status');setTimeout(async()=>{if(!cameraOpen)return;try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status('📷 Camera চালু। Capture চাপুন।','success')}catch(e){status('❌ Camera permission দিন: '+(e?.message||e),'error')}},50)};
   window.closeFieldCamera=function(){if(!cameraOpen)return;cameraOpen=false;stopGpsWatch();stopStream(fieldStream);fieldStream=null;if($('fieldCameraVideo'))$('fieldCameraVideo').srcObject=null;$('fieldCameraModal')?.classList.remove('open');$('fieldCameraModal')?.setAttribute('aria-hidden','true');document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';window.scrollTo(0,fieldCameraScrollY)};
 
-  async function openWorkerStream(){
-    if(workerStream&&workerStream.active&&$('workerCameraVideo')?.srcObject===workerStream)return;
-    stopStream(workerStream);
-    workerStream=await startStream($('workerCameraVideo'),workerFacing);
-    $('workerCameraVideo').srcObject=workerStream;
-    await $('workerCameraVideo').play();
-  }
-  window.openWorkerCamera=async function(){
-    $('workerCameraModal')?.classList.add('open');$('workerCameraModal')?.setAttribute('aria-hidden','false');$('workerCameraStatus').textContent='📷 Camera খুলছে…';
-    try{await openWorkerStream();$('workerCameraStatus').textContent=workerFacing==='user'?'🤳 Front Camera চালু হয়েছে।':'📷 Back Camera চালু হয়েছে。'}catch(e){$('workerCameraStatus').textContent='❌ Camera permission দিন: '+(e?.message||e)}
+  window.openWorkerCamera=function(){
+    const input=$('photo');
+    if(!input){window.showAppNotice?.('ক্যামেরা ইনপুট পাওয়া যায়নি।','Camera','📷');return;}
+    // Trigger the Android system camera/file capture flow; do not request GPS or use WebRTC.
+    input.click();
   };
-  window.switchWorkerCamera=async function(){workerFacing=workerFacing==='user'?'environment':'user';try{await openWorkerStream();await waitForVideoReady($('workerCameraVideo'));$('workerCameraStatus').textContent=workerFacing==='user'?'🤳 Front Camera চালু হয়েছে।':'📷 Back Camera চালু হয়েছে।'}catch(e){$('workerCameraStatus').textContent='❌ Camera বদলানো যায়নি: '+(e?.message||e)}};
-  window.takeWorkerPhoto=async function(){
-    try{const v=$('workerCameraVideo'),c=$('workerCameraCanvas');await waitForVideoReady(v);await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const w=v.videoWidth,h=v.videoHeight;c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);workerPhotoBlob=await canvasBlob(c,.95);if(workerPhotoUrl)URL.revokeObjectURL(workerPhotoUrl);workerPhotoUrl=URL.createObjectURL(workerPhotoBlob);const box=$('workerPhotoPreview');if(box)box.innerHTML=`<div class="worker-photo-preview-card"><button type="button" class="worker-photo-preview-close" onclick="clearWorkerCamera()">✕</button><img src="${workerPhotoUrl}" alt="কর্মীর ছবি"></div>`;const photoInput=$('photo');if(photoInput)photoInput.dataset.cameraReady='1';$('workerCameraStatus').textContent='✅ কর্মীর ছবি নেওয়া হয়েছে।';closeWorkerCamera();}
-    catch(e){$('workerCameraStatus').textContent='❌ ছবি নেওয়া যায়নি: '+(e?.message||e)}
+  window.getWorkerCameraFile=function(){return $('photo')?.files?.[0]||null;};
+  window.clearWorkerCamera=function(){
+    const input=$('photo');if(input)input.value='';
+    if(workerPhotoUrl){try{URL.revokeObjectURL(workerPhotoUrl)}catch(e){}workerPhotoUrl='';}
+    workerPhotoBlob=null;
+    const box=$('workerPhotoPreview');if(box)box.innerHTML='';
   };
-  window.closeWorkerCamera=function(){stopStream(workerStream);workerStream=null;$('workerCameraModal')?.classList.remove('open');$('workerCameraModal')?.setAttribute('aria-hidden','true')};
-  window.getWorkerCameraFile=function(){return workerPhotoBlob?new File([workerPhotoBlob],`worker_${Date.now()}.jpg`,{type:'image/jpeg'}):null};
-  window.clearWorkerCamera=function(){if(workerPhotoUrl){try{URL.revokeObjectURL(workerPhotoUrl)}catch(e){}workerPhotoUrl='';}workerPhotoBlob=null;const box=$('workerPhotoPreview');if(box)box.innerHTML='';const photoInput=$('photo');if(photoInput)photoInput.dataset.cameraReady='';};
-
+  const workerPhotoInput=$('photo');
+  if(workerPhotoInput)workerPhotoInput.addEventListener('change',()=>{
+    const file=workerPhotoInput.files?.[0];if(!file)return;
+    if(!file.type.startsWith('image/')){workerPhotoInput.value='';window.showAppNotice?.('ছবির ফাইল নির্বাচন করুন।','Camera','📷');return;}
+    if(workerPhotoUrl)URL.revokeObjectURL(workerPhotoUrl);
+    workerPhotoBlob=file;workerPhotoUrl=URL.createObjectURL(file);
+    const box=$('workerPhotoPreview');
+    if(box)box.innerHTML=`<div class="worker-photo-preview-card"><button type="button" class="worker-photo-preview-close" onclick="clearWorkerCamera()">✕</button><img src="${workerPhotoUrl}" alt="কর্মীর ছবি"></div>`;
+  });
   window.sendFieldPhotosToWhatsApp=async function(){
     const chosen=fieldPhotos.filter(p=>p.selected);
     if(!chosen.length){status('❌ Share করার জন্য ছবির checkbox নির্বাচন করুন।','error');return;}
