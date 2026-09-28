@@ -257,21 +257,23 @@ public class MainActivity extends Activity {
     }
 
     private class LocalAssetClient extends WebViewClient {
+        private boolean isTrustedAppUrl(Uri u) {
+            return u != null && "https".equalsIgnoreCase(u.getScheme()) &&
+                "tranquil-cupcake-5491f0.netlify.app".equalsIgnoreCase(u.getHost());
+        }
         @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             Uri u=request.getUrl(); String scheme=u.getScheme();
-            if (scheme != null && !scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https") && !scheme.equalsIgnoreCase("about")) {
-                openExternalUrl(u.toString());
-                return true;
-            }
-            return false;
+            if ("about".equalsIgnoreCase(scheme)) return false;
+            if (isTrustedAppUrl(u)) return false;
+            openExternalUrl(u.toString());
+            return true;
         }
         @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            Uri u=Uri.parse(url); String scheme=u.getScheme();
-            if (scheme != null && !scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https") && !scheme.equalsIgnoreCase("about")) {
-                openExternalUrl(url);
-                return true;
-            }
-            return false;
+            Uri u=Uri.parse(url);
+            if ("about".equalsIgnoreCase(u.getScheme())) return false;
+            if (isTrustedAppUrl(u)) return false;
+            openExternalUrl(url);
+            return true;
         }
         @Override public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view,url);
