@@ -3157,6 +3157,8 @@ if('serviceWorker' in navigator){
     updateGpsLiveOverlay({});
     startGpsWatch();
   }
+  function blobToBase64(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||'').split(',')[1]||'');reader.onerror=()=>reject(reader.error||new Error('ছবি পড়া যায়নি'));reader.readAsDataURL(blob);});}
+  async function saveFieldPhotoToGallery(blob,id){if(!window.VBDCPNative||typeof window.VBDCPNative.saveFieldPhotoToGallery!=='function')return {saved:false,reason:'এই পরিবেশে Gallery bridge নেই'};const b64=await blobToBase64(blob);const result=window.VBDCPNative.saveFieldPhotoToGallery(b64,'VBDCP_'+String(id)+'.jpg');if(!result||String(result).startsWith('ERROR:'))throw new Error(String(result||'Gallery save failed').replace(/^ERROR:/,''));return {saved:true,uri:String(result)};}
   async function processFieldBlob(mode,blob,gpsMeta=null){
     status(mode==='gps'?'📍 GPS যাচাই হচ্ছে…':'📷 ছবি প্রস্তুত হচ্ছে…','status');
     let lat=null,lng=null,accuracy=null,area='';
