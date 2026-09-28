@@ -1120,6 +1120,7 @@ function loadLocalAttendance(){try{return JSON.parse(localStorage.getItem(ATTEND
 function saveLocalAttendance(rows){try{localStorage.setItem(ATTENDANCE_LOCAL_KEY,JSON.stringify(rows));return true}catch(e){console.error('attendance local save failed',e);throw new Error('ফোনে জায়গা/স্টোরেজ সমস্যা। Attendance সংরক্ষণ হয়নি। পুরোনো রেকর্ড/ছবি ব্যাকআপ করে জায়গা খালি করে আবার চেষ্টা করুন।')}}
 function upsertLocalAttendance(row){const rows=loadLocalAttendance();const k=row.clientId||row.id;const i=rows.findIndex(x=>(x.clientId||x.id)===k);if(i>=0)rows[i]={...rows[i],...row};else rows.push(row);saveLocalAttendance(rows);return row}
 function removeLocalAttendance(clientId){saveLocalAttendance(loadLocalAttendance().filter(x=>x.clientId!==clientId))}
+function markAttendanceSynced(clientId){const msg=document.getElementById('msg');if(msg&&msg.dataset.pendingClientId===clientId){msg.className='success';msg.textContent='☁️ অ্যাটেনডেন্স সফলভাবে সিঙ্ক হয়েছে।';delete msg.dataset.pendingClientId;}}
 async function syncPendingAttendance(){
   const pending=loadLocalAttendance().filter(r=>r&&r.clientId&&r.syncStatus==='pending');
   if(!pending.length)return;
@@ -1128,10 +1129,11 @@ async function syncPendingAttendance(){
     try{
       // First look for an already-created record from an earlier timed-out write.
       const q=await getDocs(query(collection(db,'attendance'),where('clientId','==',row.clientId)));
-      if(!q.empty){removeLocalAttendance(row.clientId);continue;}
+      if(!q.empty){removeLocalAttendance(row.clientId);markAttendanceSynced(row.clientId);continue;}
       const id=row.clientId;
       await setDoc(doc(db,'attendance',id),{...row,id,syncStatus:'synced'},{merge:true});
       removeLocalAttendance(row.clientId);
+      markAttendanceSynced(row.clientId);
     }catch(e){console.warn('pending attendance sync failed',row.clientId,e)}
   }
   try{if(typeof window.loadRecords==='function')window.loadRecords();}catch(e){}
@@ -1159,7 +1161,7 @@ window.saveAttendance=async()=>{
     }
     if(!address){markInvalid("address",true);msg.className="error";msg.textContent="❌ কাজের ঠিকানা লিখুন।";return;}
     msg.className="status";
-    msg.textContent="Save হচ্ছে...";
+    msg.textContent="অ্যাটেনডেন্স সংরক্ষণ করা হচ্ছে…";
 
     let photoData="";
     const cameraFile=(typeof window.getWorkerCameraFile==='function')?window.getWorkerCameraFile():null;
@@ -1227,7 +1229,8 @@ window.saveAttendance=async()=>{
     // LOCAL-FIRST: the phone copy is the submit point. Firebase sync is background-only.
     upsertLocalAttendance(data);
     msg.className="success";
-    msg.textContent="📱 ফোনে Save হয়েছে — পরের Attendance করা যাবে। Internet এলে Firebase Sync হবে।";
+    msg.textContent="অ্যাটেনডেন্স নিরাপদে সংরক্ষিত হয়েছে। ইন্টারনেট সংযোগ পাওয়া গেলে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।";
+    msg.dataset.pendingClientId=data.clientId;
 
     // Mark the selected village as worked today. This drives the 15-day overdue red indicator.
     const cfg=locationConfigs[String(selectedLocationNumber)];
