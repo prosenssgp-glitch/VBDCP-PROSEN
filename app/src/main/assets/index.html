@@ -811,6 +811,18 @@ label.label-invalid{color:#ff6868!important}
 .today-camera-btn:focus-visible{outline:2px solid #a9e5ff!important;outline-offset:3px!important}
 @media(max-width:600px){.today-attendance-title-row{min-height:56px!important;padding-right:58px!important}.today-camera-btn{right:5px!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important}}
 </style>
+<style id="vbdcp-android-tap-performance">
+/* Faster, less expensive touch feedback on Android WebView */
+button, a, select, input, textarea {touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button {transition:transform .07s ease!important}
+button:active {transition:transform .04s ease!important}
+@media (hover:hover) and (pointer:fine) {
+ button:hover {filter:brightness(1.08)}
+}
+@media (hover:none) {
+ button:hover {filter:none!important;transform:none!important}
+}
+</style>
 </head><body data-vbdcp-version="v51-final-direct-camera">
 <header><div class="brand"><div class="vbdcp-title-wrap"><img src="mosquito-red.svg" class="title-mosquito" alt="Mosquito"><div><h2><span class="vbdcp-color-title">VBDCP</span></h2><div>Online Attendance App</div></div><img src="mosquito-red.svg" class="title-mosquito flip" alt="Mosquito"></div></div></header><div id="connectionStatus" class="connection-status" aria-live="polite"></div><main>
 <div class="card"><div class="menu3" id="mainMenu"><button data-tab="attendance" onclick="showTab('attendance')">👷 কর্মীর Attendance</button><button class="secondary" data-tab="workerDashboard" onclick="showTab('workerDashboard')">📊 কর্মীর Dashboard</button><button class="secondary" data-tab="adminLogin" onclick="showTab('adminLogin')">🔐 Admin Login</button></div></div>
@@ -2451,23 +2463,29 @@ window.exportAdminCSV=()=>{
 
 <script id="vbdcp-touch-feedback">
 (function(){
-  function addTouchFeedback(){
-    const els=document.querySelectorAll('button,select,input,textarea,.menu3 button');
-    els.forEach(el=>{
-      if(el.dataset.vbdcpTouchBound)return;
-      el.dataset.vbdcpTouchBound='1';
-      const on=()=>el.classList.add('touch-active');
-      const off=()=>setTimeout(()=>el.classList.remove('touch-active'),120);
-      el.addEventListener('touchstart',on,{passive:true});
-      el.addEventListener('touchend',off,{passive:true});
-      el.addEventListener('touchcancel',off,{passive:true});
-      el.addEventListener('mousedown',on);
-      el.addEventListener('mouseup',off);
-      el.addEventListener('mouseleave',()=>el.classList.remove('touch-active'));
-    });
+  const selector='button,select,input,textarea,.menu3 button';
+  function bind(el){
+    if(!el||el.nodeType!==1||el.dataset.vbdcpTouchBound)return;
+    if(!el.matches(selector))return;
+    el.dataset.vbdcpTouchBound='1';
+    el.addEventListener('touchstart',()=>el.classList.add('touch-active'),{passive:true});
+    const off=()=>el.classList.remove('touch-active');
+    el.addEventListener('touchend',off,{passive:true});
+    el.addEventListener('touchcancel',off,{passive:true});
+    el.addEventListener('mousedown',()=>el.classList.add('touch-active'));
+    el.addEventListener('mouseup',off);
+    el.addEventListener('mouseleave',off);
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addTouchFeedback);else addTouchFeedback();
-  new MutationObserver(addTouchFeedback).observe(document.body,{childList:true,subtree:true});
+  function bindTree(root){
+    if(!root||root.nodeType!==1)return;
+    bind(root);
+    root.querySelectorAll?.(selector).forEach(bind);
+  }
+  bindTree(document.body);
+  const observer=new MutationObserver(records=>{
+    for(const record of records)for(const node of record.addedNodes)bindTree(node);
+  });
+  observer.observe(document.body,{childList:true,subtree:true});
 })();
 </script>
 
