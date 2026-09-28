@@ -1,4 +1,4 @@
-name: Build VBDCP Android APK
+name: Build V68 Android APK
 
 on:
   workflow_dispatch:
@@ -13,33 +13,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Check signing keystore
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.VBDCP_KEYSTORE_PASSWORD }}
+      - name: Extract V68 Project
         run: |
-          keytool -list \
-            -keystore vbdcp-release.keystore \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -alias vbdcp
+          unzip -q VBDCP-NativeCamera-V68-TodayAttendance-Centered.zip
+          cd VBDCP-NativeCamera-APK
+          echo "V68 project extracted successfully"
+          ls -la
 
-      - name: Build Release APK
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.VBDCP_KEYSTORE_PASSWORD }}
-        run: gradle :app:assembleRelease --no-daemon
+      - name: Build V68 Debug APK
+        run: |
+          cd VBDCP-NativeCamera-APK
+          gradle :app:assembleDebug --no-daemon
 
-      - name: Upload Release APK
+      - name: Upload V68 APK
         uses: actions/upload-artifact@v4
         with:
-          name: VBDCP-V58-release-apk
-          path: app/build/outputs/apk/release/app-release.apk
+          name: VBDCP-V68-debug-apk
+          path: VBDCP-NativeCamera-APK/app/build/outputs/apk/debug/app-debug.apk
