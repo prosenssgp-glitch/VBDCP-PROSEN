@@ -37,6 +37,8 @@ public class MainActivity extends Activity {
     private Uri cameraUri;
     private android.webkit.PermissionRequest pendingCameraRequest;
     private boolean appPermissionsRequestInFlight = false;
+    private GeolocationPermissions.Callback pendingGeoCallback;
+    private String pendingGeoOrigin;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -73,7 +75,16 @@ public class MainActivity extends Activity {
                 if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
                     checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                     callback.invoke(origin, true, false);
-                } else { callback.invoke(origin, false, false); }
+                    return;
+                }
+                // Do not reject geolocation just because Android's permission dialog has not completed yet.
+                if (pendingGeoCallback != null) pendingGeoCallback.invoke(pendingGeoOrigin, false, false);
+                pendingGeoOrigin = origin;
+                pendingGeoCallback = callback;
+                if (!appPermissionsRequestInFlight) {
+                    appPermissionsRequestInFlight = true;
+                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_PERMS);
+                }
             }
 
             @Override public void onPermissionRequest(final android.webkit.PermissionRequest request) {
@@ -167,6 +178,15 @@ public class MainActivity extends Activity {
                 } else {
                     request.deny();
                 }
+            }
+            if (pendingGeoCallback != null) {
+                GeolocationPermissions.Callback callback = pendingGeoCallback;
+                String origin = pendingGeoOrigin;
+                pendingGeoCallback = null;
+                pendingGeoOrigin = null;
+                boolean granted = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                    checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+                callback.invoke(origin, granted, false);
             }
         }
     }
