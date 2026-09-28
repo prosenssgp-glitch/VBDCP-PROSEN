@@ -811,11 +811,26 @@ label.label-invalid{color:#ff6868!important}
 .today-camera-btn:focus-visible{outline:2px solid #a9e5ff!important;outline-offset:3px!important}
 @media(max-width:600px){.today-attendance-title-row{min-height:56px!important;padding-right:58px!important}.today-camera-btn{right:5px!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important}}
 </style>
-</head><body data-vbdcp-version="v51-final-direct-camera">
+<style>
+.field-native-photo-tools{margin:12px 0;padding:12px;border:1px solid #496579;border-radius:12px;background:linear-gradient(145deg,#182b39,#080f15)}
+.field-native-photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:10px}
+.field-native-photo-card{border:1px solid #526a7b;border-radius:10px;padding:7px;min-width:0}
+.field-native-photo-card img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:7px}
+.field-native-photo-actions{display:flex;gap:5px}.field-native-photo-actions button{font-size:13px;padding:8px 4px;margin-top:5px}
+.field-native-photo-tools .small{margin-top:7px}
+</style></head><body data-vbdcp-version="v51-final-direct-camera">
 <header><div class="brand"><div class="vbdcp-title-wrap"><img src="mosquito-red.svg" class="title-mosquito" alt="Mosquito"><div><h2><span class="vbdcp-color-title">VBDCP</span></h2><div>Online Attendance App</div></div><img src="mosquito-red.svg" class="title-mosquito flip" alt="Mosquito"></div></div></header><div id="connectionStatus" class="connection-status" aria-live="polite"></div><main>
 <div class="card"><div class="menu3" id="mainMenu"><button data-tab="attendance" onclick="showTab('attendance')">👷 কর্মীর Attendance</button><button class="secondary" data-tab="workerDashboard" onclick="showTab('workerDashboard')">📊 কর্মীর Dashboard</button><button class="secondary" data-tab="adminLogin" onclick="showTab('adminLogin')">🔐 Admin Login</button></div></div>
 <section id="attendance"><div class="card attendance-card">
 <div class="today-attendance-title-row"><h3 class="today-attendance-title">Today Attendance</h3></div>
+<div class="field-native-photo-tools">
+  <button type="button" onclick="document.getElementById('fieldNativePhotoInput').click()">📷 কাজের ছবি তুলুন / আরও ছবি যোগ করুন</button>
+  <input id="fieldNativePhotoInput" type="file" accept="image/*" capture="environment" hidden>
+  <div class="small">ফোনের Camera দিয়ে একবারে একটি ছবি তুলুন। ছবি যোগ হলে আবার ক্যামেরা খুলে পরের ছবি তুলতে পারবেন।</div>
+  <div id="fieldNativePhotoStatus" class="status">ছবি তোলা হলে এখানে যোগ হবে।</div>
+  <div id="fieldNativePhotoGrid" class="field-native-photo-grid"></div>
+  <button type="button" class="secondary" onclick="window.shareNativeFieldPhotos()">📤 নির্বাচিত ছবি Share করুন</button>
+</div>
 <div class="selected-worker-display" id="selectedWorkerDisplay">কর্মীর নাম নির্বাচন করুন</div>
 <div class="worker-control-row">
   <div class="worker-picker-wrap worker-picker-left">
@@ -3180,6 +3195,31 @@ if('serviceWorker' in navigator){
     }catch(e){console.error(e);status('❌ ছবি তোলা যায়নি: '+(e?.message||e),'error')}
   };
   window.switchFieldCamera=async function(){fieldFacing=fieldFacing==='environment'?'user':'environment';try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status(fieldFacing==='user'?'🤳 Front Camera চালু হয়েছে।':'📷 Back Camera চালু হয়েছে।','success')}catch(e){status('❌ Camera বদলানো যায়নি: '+(e?.message||e),'error')}};
+  // Native Camera multi-photo flow, kept separate from employee photo and attendance saving.
+  const nativePhotoInput=$('fieldNativePhotoInput');
+  let nativePhotoItems=[];
+  function renderNativePhotoItems(){
+    const grid=$('fieldNativePhotoGrid');if(!grid)return;
+    grid.innerHTML=nativePhotoItems.map((p,i)=>`<div class="field-native-photo-card"><div>✔️ ছবি ${i+1}</div><img src="${p.url}" alt="তোলা ছবি"><div class="field-native-photo-actions"><button type="button" onclick="window.shareOneNativeFieldPhoto(${i})">📤 Share</button><button type="button" onclick="window.deleteOneNativeFieldPhoto(${i})">🗑️ Delete</button></div></div>`).join('');
+  }
+  function nativePhotoStatus(t,kind='status'){const el=$('fieldNativePhotoStatus');if(el){el.textContent=t;el.className='status '+kind;}}
+  if(nativePhotoInput)nativePhotoInput.addEventListener('change',async()=>{
+    const file=nativePhotoInput.files&&nativePhotoInput.files[0];nativePhotoInput.value='';
+    if(!file)return;
+    try{
+      nativePhotoStatus('📍 ছবি যোগ হচ্ছে… GPS অবস্থান নেওয়া হচ্ছে।');
+      startGpsWatch();
+      const fix=await bestGpsFix();
+      const capturedAt=new Date();
+      const before=fieldPhotos.length;
+      await processFieldBlob('gps',file,{...fix,capturedAt});
+      const p=fieldPhotos[fieldPhotos.length-1];
+      if(p&&fieldPhotos.length>before){nativePhotoItems.push({blob:p.blob,url:p.url,id:p.id});renderNativePhotoItems();nativePhotoStatus('✔️ ছবি যোগ হয়েছে। চাইলে আবার ক্যামেরা খুলে আরও ছবি তুলুন।','success');}
+    }catch(e){console.error(e);nativePhotoStatus('❌ ছবি যোগ হয়নি: '+(e.message||e),'error');}
+  });
+  window.deleteOneNativeFieldPhoto=function(i){const p=nativePhotoItems[i];if(!p)return;const idx=fieldPhotos.findIndex(x=>x.id===p.id);if(idx>=0)window.removeFieldPhoto(idx);nativePhotoItems.splice(i,1);renderNativePhotoItems();};
+  window.shareOneNativeFieldPhoto=async function(i){const p=nativePhotoItems[i];if(!p)return;try{const f=new File([p.blob],`VBDCP_${Date.now()}.jpg`,{type:'image/jpeg'});if(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({title:'VBDCP কাজের ছবি',files:[f]});else nativePhotoStatus('এই ফোনে সরাসরি ছবি Share সমর্থিত নয়।','error');}catch(e){if(e.name!=='AbortError')nativePhotoStatus('Share করা যায়নি: '+(e.message||e),'error');}};
+  window.shareNativeFieldPhotos=async function(){const files=nativePhotoItems.map((p,i)=>new File([p.blob],`VBDCP_${Date.now()}_${i+1}.jpg`,{type:'image/jpeg'}));if(!files.length){nativePhotoStatus('আগে ছবি তুলুন।','error');return;}try{if(navigator.share&&navigator.canShare&&navigator.canShare({files}))await navigator.share({title:'VBDCP কাজের ছবি',files});else nativePhotoStatus('এই ফোনে একাধিক ছবি Share সমর্থিত নয়।','error');}catch(e){if(e.name!=='AbortError')nativePhotoStatus('Share করা যায়নি: '+(e.message||e),'error');}};
   window.openFieldCamera=function(){if(cameraOpen)return;loadStoredFieldPhotos();cameraOpen=true;fieldCameraScrollY=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=`-${fieldCameraScrollY}px`;document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';$('fieldCameraModal')?.classList.add('open');$('fieldCameraModal')?.setAttribute('aria-hidden','false');renderFieldPhotos();updateFieldCameraModeUI();status('📷 Camera চালু হচ্ছে… Capture চাপুন।','status');setTimeout(async()=>{if(!cameraOpen)return;try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status('📷 Camera চালু। Capture চাপুন।','success')}catch(e){status('❌ Camera permission দিন: '+(e?.message||e),'error')}},50)};
   window.closeFieldCamera=function(){if(!cameraOpen)return;cameraOpen=false;stopGpsWatch();stopStream(fieldStream);fieldStream=null;if($('fieldCameraVideo'))$('fieldCameraVideo').srcObject=null;$('fieldCameraModal')?.classList.remove('open');$('fieldCameraModal')?.setAttribute('aria-hidden','true');document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';window.scrollTo(0,fieldCameraScrollY)};
 
