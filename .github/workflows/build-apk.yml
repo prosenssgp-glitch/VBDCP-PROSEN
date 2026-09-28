@@ -51,14 +51,14 @@ jobs:
 
       - name: Find Android Project
         run: |
-          PROJECT_DIR=$(find v68 -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) -print -quit)
+          PROJECT_FILE=$(find v68 -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) -print -quit)
 
-          if [ -z "$PROJECT_DIR" ]; then
+          if [ -z "$PROJECT_FILE" ]; then
             echo "ERROR: Android project settings.gradle not found!"
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$PROJECT_DIR")
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
 
           echo "Android project found at:"
           echo "$PROJECT_DIR"
@@ -75,11 +75,29 @@ jobs:
           echo "App folder:"
           ls -lah app
 
+      - name: Create Kotlin Dependency Fix
+        run: |
+          cat > /tmp/kotlin-fix.gradle <<'EOF'
+          allprojects {
+              configurations.all {
+                  resolutionStrategy.eachDependency { details ->
+                      if (details.requested.group == "org.jetbrains.kotlin") {
+                          details.useVersion "1.8.22"
+                          details.because "Align Kotlin dependencies to prevent duplicate classes"
+                      }
+                  }
+              }
+          }
+          EOF
+
       - name: Build V68 Debug APK
         run: |
           cd "$PROJECT_DIR"
 
-          gradle :app:assembleDebug --no-daemon
+          gradle \
+            --init-script /tmp/kotlin-fix.gradle \
+            :app:assembleDebug \
+            --no-daemon
 
       - name: Check APK
         run: |
