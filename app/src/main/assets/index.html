@@ -3022,6 +3022,11 @@ if('serviceWorker' in navigator){
 (function(){
   const CAMERA_KEY='vbdcp_whatsapp_group_v1';
   let fieldPhotos=[];
+  const FIELD_PHOTO_DB='vbdcp_field_photos_v1';
+  function openFieldPhotoDb(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window)){reject(new Error('এই Browser-এ স্থায়ী ছবি সংরক্ষণ সমর্থিত নয়'));return;}const req=indexedDB.open(FIELD_PHOTO_DB,1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('photos'))db.createObjectStore('photos',{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('ছবি সংরক্ষণের ডাটাবেস খোলা যায়নি'));});}
+  async function storeFieldPhoto(photo){const db=await openFieldPhotoDb();return new Promise((resolve,reject)=>{const tx=db.transaction('photos','readwrite');tx.objectStore('photos').put({id:photo.id,blob:photo.blob,mode:photo.mode,lat:photo.lat,lng:photo.lng,accuracy:photo.accuracy,area:photo.area,capturedAt:photo.capturedAt,createdAt:photo.createdAt});tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error||new Error('ছবি ফোনে সংরক্ষণ হয়নি'));};});}
+  async function deleteStoredFieldPhoto(id){try{const db=await openFieldPhotoDb();await new Promise((resolve,reject)=>{const tx=db.transaction('photos','readwrite');tx.objectStore('photos').delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close();}catch(e){console.warn('Stored photo delete failed',e)}}
+  async function loadStoredFieldPhotos(){try{const db=await openFieldPhotoDb();const rows=await new Promise((resolve,reject)=>{const tx=db.transaction('photos','readonly');const req=tx.objectStore('photos').getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error)});db.close();fieldPhotos.forEach(p=>{if(p.url)URL.revokeObjectURL(p.url)});fieldPhotos=rows.sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt))).map(p=>({...p,url:URL.createObjectURL(p.blob),selected:false}));renderFieldPhotos();}catch(e){console.warn('Saved field photos unavailable',e)}}
   let cameraOpen=false;
   let fieldCameraScrollY=0;
   let fieldCaptureMode='gps';
@@ -3130,9 +3135,10 @@ if('serviceWorker' in navigator){
   function status(t,kind){const el=$('fieldCameraStatus');if(el){el.textContent=t;el.className='status '+(kind||'')}}
   function renderFieldPhotos(){
     const grid=$('fieldPhotoGrid'),count=$('fieldCameraCount');if(count)count.textContent=fieldPhotos.length;if(!grid)return;
-    grid.innerHTML=fieldPhotos.map((p,i)=>`<div class="field-photo-card"><button type="button" class="field-photo-x" onclick="removeFieldPhoto(${i})">✕</button><img src="${p.url}" alt="photo"><div class="field-photo-meta"><b>${p.mode==='gps'?'📍 GPS Camera':'📷 Normal Camera'}</b>${p.area?`<br>📍 ${esc(p.area)}`:''}${p.lat!=null?`<br>GPS: ${Number(p.lat).toFixed(6)}, ${Number(p.lng).toFixed(6)}`:''}</div></div>`).join('');
+    grid.innerHTML=fieldPhotos.map((p,i)=>`<div class="field-photo-card"><label><input type="checkbox" ${p.selected?'checked':''} onchange="selectFieldPhoto(${i},this.checked)"> Share</label><button type="button" class="field-photo-x" onclick="removeFieldPhoto(${i})">✕</button><img src="${p.url}" alt="photo"><div class="field-photo-meta"><b>📍 GPS Camera</b>${p.area?`<br>📍 ${esc(p.area)}`:''}${p.lat!=null?`<br>GPS: ${Number(p.lat).toFixed(6)}, ${Number(p.lng).toFixed(6)}`:''}</div></div>`).join('');
   }
-  window.removeFieldPhoto=function(i){const p=fieldPhotos[i];if(p?.url)URL.revokeObjectURL(p.url);fieldPhotos.splice(i,1);renderFieldPhotos()};
+  window.selectFieldPhoto=function(i,checked){if(fieldPhotos[i])fieldPhotos[i].selected=!!checked;};
+  window.removeFieldPhoto=function(i){const p=fieldPhotos[i];if(p?.url)URL.revokeObjectURL(p.url);if(p?.id)deleteStoredFieldPhoto(p.id);fieldPhotos.splice(i,1);renderFieldPhotos()};
   function updateGpsLiveOverlay(meta){
     const o=$("gpsLiveOverlay");if(!o)return;
     if(fieldCaptureMode!=='gps'){o.classList.add('hidden');return;}
@@ -3155,7 +3161,7 @@ if('serviceWorker' in navigator){
       if(gpsMeta){lat=gpsMeta.lat;lng=gpsMeta.lng;accuracy=gpsMeta.accuracy;area=gpsMeta.area||await reverseArea(lat,lng)}
       else {const fix=await bestGpsFix();lat=fix.lat;lng=fix.lng;accuracy=fix.accuracy;area=await reverseArea(lat,lng)}
     }
-    const m={lat,lng,accuracy,area,capturedAt:gpsMeta?.capturedAt||new Date()};const out=mode==='gps'?await makeGpsImage(blob,m):await makeNormalImage(blob);const url=URL.createObjectURL(out);fieldPhotos.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),blob:out,url,mode,...m,createdAt:new Date().toISOString()});renderFieldPhotos();status(`✅ ছবি যোগ হয়েছে। মোট ${fieldPhotos.length}টি ছবি।`,'success');
+    const m={lat,lng,accuracy,area,capturedAt:gpsMeta?.capturedAt||new Date()};const out=await makeGpsImage(blob,m);const id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());const photo={id,blob:out,mode:'gps',...m,createdAt:new Date().toISOString(),selected:false};await storeFieldPhoto(photo);photo.url=URL.createObjectURL(out);fieldPhotos.push(photo);renderFieldPhotos();status(`✅ GPS ছবি ফোনে সংরক্ষিত হয়েছে। মোট ${fieldPhotos.length}টি ছবি।`,'success');
   }
   async function openFieldStream(){
     if(fieldStream&&fieldStream.active&&$('fieldCameraVideo')?.srcObject===fieldStream)return;
@@ -3200,7 +3206,7 @@ if('serviceWorker' in navigator){
     }catch(e){console.error(e);status('❌ ছবি তোলা যায়নি: '+(e?.message||e),'error')}
   };
   window.switchFieldCamera=async function(){fieldFacing=fieldFacing==='environment'?'user':'environment';try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status(fieldFacing==='user'?'🤳 Front Camera চালু হয়েছে।':'📷 Back Camera চালু হয়েছে।','success')}catch(e){status('❌ Camera বদলানো যায়নি: '+(e?.message||e),'error')}};
-  window.openFieldCamera=function(){if(cameraOpen)return;cameraOpen=true;fieldCameraScrollY=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=`-${fieldCameraScrollY}px`;document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';$('fieldCameraModal')?.classList.add('open');$('fieldCameraModal')?.setAttribute('aria-hidden','false');renderFieldPhotos();updateFieldCameraModeUI();status('📷 Camera চালু হচ্ছে… Capture চাপুন।','status');setTimeout(async()=>{if(!cameraOpen)return;try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status('📷 Camera চালু। Capture চাপুন।','success')}catch(e){status('❌ Camera permission দিন: '+(e?.message||e),'error')}},50)};
+  window.openFieldCamera=function(){if(cameraOpen)return;loadStoredFieldPhotos();cameraOpen=true;fieldCameraScrollY=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=`-${fieldCameraScrollY}px`;document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';$('fieldCameraModal')?.classList.add('open');$('fieldCameraModal')?.setAttribute('aria-hidden','false');renderFieldPhotos();updateFieldCameraModeUI();status('📷 Camera চালু হচ্ছে… Capture চাপুন।','status');setTimeout(async()=>{if(!cameraOpen)return;try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status('📷 Camera চালু। Capture চাপুন।','success')}catch(e){status('❌ Camera permission দিন: '+(e?.message||e),'error')}},50)};
   window.closeFieldCamera=function(){if(!cameraOpen)return;cameraOpen=false;stopGpsWatch();stopStream(fieldStream);fieldStream=null;if($('fieldCameraVideo'))$('fieldCameraVideo').srcObject=null;$('fieldCameraModal')?.classList.remove('open');$('fieldCameraModal')?.setAttribute('aria-hidden','true');document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';window.scrollTo(0,fieldCameraScrollY)};
 
   async function openWorkerStream(){
@@ -3224,11 +3230,12 @@ if('serviceWorker' in navigator){
   window.clearWorkerCamera=function(){if(workerPhotoUrl){try{URL.revokeObjectURL(workerPhotoUrl)}catch(e){}workerPhotoUrl='';}workerPhotoBlob=null;const box=$('workerPhotoPreview');if(box)box.innerHTML='';const photoInput=$('photo');if(photoInput)photoInput.dataset.cameraReady='';};
 
   window.sendFieldPhotosToWhatsApp=async function(){
-    if(!fieldPhotos.length){status('❌ আগে অন্তত একটি ছবি তুলুন।','error');return;}
+    const chosen=fieldPhotos.filter(p=>p.selected);
+    if(!chosen.length){status('❌ Share করার জন্য ছবির checkbox নির্বাচন করুন।','error');return;}
     const group=String($('whatsappGroupLink')?.value||loadWALocal().groupLink||'').trim();
-    const files=fieldPhotos.map((p,i)=>new File([p.blob],`VBDCP_${Date.now()}_${i+1}.jpg`,{type:'image/jpeg'}));
+    const files=chosen.map((p,i)=>new File([p.blob],`VBDCP_${Date.now()}_${i+1}.jpg`,{type:'image/jpeg'}));
     const text=`VBDCP কাজের ছবি\nছবি: ${files.length}টি`;
-    try{if(group){try{window.open(group,'_blank','noopener')}catch(e){}}if(navigator.share&&navigator.canShare&&navigator.canShare({files})){await navigator.share({title:'VBDCP কাজের ছবি',text,files});fieldPhotos.forEach(p=>{try{URL.revokeObjectURL(p.url)}catch(e){}});fieldPhotos=[];renderFieldPhotos();status('✅ Share প্রস্তুত। Admin-এর WhatsApp Group link খোলা হয়েছে।','success');return;}status(group?'📲 Admin-এর WhatsApp Group link খোলা হয়েছে। এখন Share থেকে ছবিগুলো পাঠান।':'⚠️ WhatsApp Group link সেট করা নেই।','status')}
+    try{if(group){try{window.open(group,'_blank','noopener')}catch(e){}}if(navigator.share&&navigator.canShare&&navigator.canShare({files})){await navigator.share({title:'VBDCP কাজের ছবি',text,files});status('✅ Share sheet খোলা হয়েছে। ছবিগুলো ফোনে সংরক্ষিত থাকবে।','success');return;}status(group?'📲 Admin-এর WhatsApp Group link খোলা হয়েছে। এখন Share থেকে ছবিগুলো পাঠান।':'⚠️ WhatsApp Group link সেট করা নেই।','status')}
     catch(e){if(e?.name==='AbortError'){status('ℹ️ Share বাতিল হয়েছে। ছবিগুলো এখনও আছে।','status');return}console.error(e);status('❌ WhatsApp Share করা যায়নি: '+(e?.message||e),'error')}
   };
   document.addEventListener('DOMContentLoaded',()=>{loadWA()});
