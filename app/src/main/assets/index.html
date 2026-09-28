@@ -873,8 +873,7 @@ label.label-invalid{color:#ff6868!important}
     <video id="workerCameraVideo" class="worker-camera-video" autoplay playsinline muted></video>
     <canvas id="workerCameraCanvas" class="hidden"></canvas>
     <div class="worker-camera-actions">
-      <button type="button" onclick="switchWorkerCamera()">🔄 Front / Back</button>
-      <button type="button" class="field-send-btn" onclick="takeWorkerPhoto()">📸 ছবি তুলুন</button>
+       <button type="button" class="field-send-btn" onclick="takeWorkerPhoto()">📸 ছবি তুলুন</button>
     </div>
     <div id="workerCameraStatus" class="status">ক্যামেরা চালু হচ্ছে…</div>
   </div>
@@ -892,8 +891,7 @@ label.label-invalid{color:#ff6868!important}
     <div class="field-camera-toolbar">
       <button type="button" id="fieldGpsModeBtn" onclick="selectFieldCamera('gps')">📍 GPS Camera</button>
       <button type="button" id="fieldNormalModeBtn" onclick="selectFieldCamera('normal')">📷 Normal Camera</button>
-      <button type="button" onclick="switchFieldCamera()">🔄 Front / Back</button>
-      <button type="button" class="field-capture-btn" onclick="captureFieldPhoto()">📸 Capture</button>
+       <button type="button" class="field-capture-btn" onclick="captureFieldPhoto()">📸 Capture</button>
     </div>
     <div id="fieldCameraStatus" class="status">📷 সরাসরি Camera দিয়ে ছবি তুলুন।</div>
     <div class="field-camera-count-row"><b>মোট ছবি: <span id="fieldCameraCount">0</span></b><span>একবারে একটি ছবি তুলে যত খুশি যোগ করতে পারবেন</span></div>
@@ -3048,7 +3046,7 @@ if('serviceWorker' in navigator){
   }
   let fieldFacing='environment';
   let workerStream=null;
-  let workerFacing='user';
+  let workerFacing='environment';
   let workerPhotoBlob=null;
   let workerPhotoUrl='';
   function $(id){return document.getElementById(id)}
@@ -3160,7 +3158,13 @@ if('serviceWorker' in navigator){
     }
     const m={lat,lng,accuracy,area,capturedAt:gpsMeta?.capturedAt||new Date()};const out=mode==='gps'?await makeGpsImage(blob,m):await makeNormalImage(blob);const url=URL.createObjectURL(out);fieldPhotos.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),blob:out,url,mode,...m,createdAt:new Date().toISOString()});renderFieldPhotos();status(`✅ ছবি যোগ হয়েছে। মোট ${fieldPhotos.length}টি ছবি।`,'success');
   }
-  async function openFieldStream(){stopStream(fieldStream);fieldStream=await startStream($('fieldCameraVideo'),fieldFacing);$('fieldCameraVideo').srcObject=fieldStream;await $('fieldCameraVideo').play()}
+  async function openFieldStream(){
+    if(fieldStream&&fieldStream.active&&$('fieldCameraVideo')?.srcObject===fieldStream)return;
+    stopStream(fieldStream);
+    fieldStream=await startStream($('fieldCameraVideo'),fieldFacing);
+    $('fieldCameraVideo').srcObject=fieldStream;
+    await $('fieldCameraVideo').play();
+  }
   async function waitForVideoReady(video){
     if(!video)throw new Error('Camera video পাওয়া যায়নি');
     if(video.readyState<2||!video.videoWidth||!video.videoHeight){await new Promise((resolve,reject)=>{let done=false;const cleanup=()=>{video.removeEventListener('loadedmetadata',finish);video.removeEventListener('canplay',finish);video.removeEventListener('playing',finish)};const finish=()=>{if(done)return;done=true;cleanup();resolve()};const fail=()=>{if(done)return;done=true;cleanup();reject(new Error('Camera frame প্রস্তুত হয়নি'))};video.addEventListener('loadedmetadata',finish,{once:true});video.addEventListener('canplay',finish,{once:true});video.addEventListener('playing',finish,{once:true});setTimeout(()=>{if(video.videoWidth&&video.videoHeight)finish();else fail()},5000)})}
@@ -3195,14 +3199,19 @@ if('serviceWorker' in navigator){
         if(fix.accuracy>150)status(`⚠️ GPS accuracy প্রায় ${Math.round(fix.accuracy)}m — আরও নির্ভুল অবস্থানের জন্য খোলা জায়গায় কিছুক্ষণ অপেক্ষা করুন।`,'status');
       }
       await processFieldBlob(mode,blob,captureGps);
-      try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));}catch(e){}
     }catch(e){console.error(e);status('❌ ছবি তোলা যায়নি: '+(e?.message||e),'error')}
   };
   window.switchFieldCamera=async function(){fieldFacing=fieldFacing==='environment'?'user':'environment';try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status(fieldFacing==='user'?'🤳 Front Camera চালু হয়েছে।':'📷 Back Camera চালু হয়েছে।','success')}catch(e){status('❌ Camera বদলানো যায়নি: '+(e?.message||e),'error')}};
-  window.openFieldCamera=function(){if(cameraOpen)return;cameraOpen=true;fieldCameraScrollY=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=`-${fieldCameraScrollY}px`;document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';$('fieldCameraModal')?.classList.add('open');$('fieldCameraModal')?.setAttribute('aria-hidden','false');renderFieldPhotos();updateFieldCameraModeUI();status('📷 Camera চালু হচ্ছে… GPS/Normal বেছে নিয়ে Capture চাপুন।','status');setTimeout(async()=>{if(!cameraOpen)return;try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status('📷 Back Camera চালু। GPS/Normal বেছে নিয়ে Capture চাপুন।','success')}catch(e){status('❌ Camera permission দিন: '+(e?.message||e),'error')}},50)};
+  window.openFieldCamera=function(){if(cameraOpen)return;cameraOpen=true;fieldCameraScrollY=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=`-${fieldCameraScrollY}px`;document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';$('fieldCameraModal')?.classList.add('open');$('fieldCameraModal')?.setAttribute('aria-hidden','false');renderFieldPhotos();updateFieldCameraModeUI();status('📷 Camera চালু হচ্ছে… Capture চাপুন।','status');setTimeout(async()=>{if(!cameraOpen)return;try{await openFieldStream();await waitForVideoReady($('fieldCameraVideo'));status('📷 Camera চালু। Capture চাপুন।','success')}catch(e){status('❌ Camera permission দিন: '+(e?.message||e),'error')}},50)};
   window.closeFieldCamera=function(){if(!cameraOpen)return;cameraOpen=false;stopGpsWatch();stopStream(fieldStream);fieldStream=null;if($('fieldCameraVideo'))$('fieldCameraVideo').srcObject=null;$('fieldCameraModal')?.classList.remove('open');$('fieldCameraModal')?.setAttribute('aria-hidden','true');document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';window.scrollTo(0,fieldCameraScrollY)};
 
-  async function openWorkerStream(){stopStream(workerStream);workerStream=await startStream($('workerCameraVideo'),workerFacing);$('workerCameraVideo').srcObject=workerStream;await $('workerCameraVideo').play()}
+  async function openWorkerStream(){
+    if(workerStream&&workerStream.active&&$('workerCameraVideo')?.srcObject===workerStream)return;
+    stopStream(workerStream);
+    workerStream=await startStream($('workerCameraVideo'),workerFacing);
+    $('workerCameraVideo').srcObject=workerStream;
+    await $('workerCameraVideo').play();
+  }
   window.openWorkerCamera=async function(){
     $('workerCameraModal')?.classList.add('open');$('workerCameraModal')?.setAttribute('aria-hidden','false');$('workerCameraStatus').textContent='📷 Camera খুলছে…';
     try{await openWorkerStream();$('workerCameraStatus').textContent=workerFacing==='user'?'🤳 Front Camera চালু হয়েছে।':'📷 Back Camera চালু হয়েছে。'}catch(e){$('workerCameraStatus').textContent='❌ Camera permission দিন: '+(e?.message||e)}

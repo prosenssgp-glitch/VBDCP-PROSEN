@@ -116,7 +116,7 @@ public class MainActivity extends Activity {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = cb;
                 try {
-                    showCameraChoice();
+                    launchEmployeeCamera(false);
                 } catch (Exception e) {
                     fileCallback = null;
                     cameraUri = null;
@@ -128,16 +128,6 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new NativeBridge(), "VBDCPNative");
     }
 
-    private void showCameraChoice() {
-        final String[] choices = {"📷 Back Camera", "🤳 Front Camera"};
-        new android.app.AlertDialog.Builder(this)
-            .setTitle("কর্মীর ছবি তুলুন")
-            .setItems(choices, (dialog, which) -> launchEmployeeCamera(which == 1))
-            .setNegativeButton("বাতিল", (dialog, which) -> {
-                if (fileCallback != null) { fileCallback.onReceiveValue(null); fileCallback = null; }
-            }).show();
-    }
-
     private void launchEmployeeCamera(boolean front) {
         try {
             Intent camera = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
@@ -147,9 +137,6 @@ public class MainActivity extends Activity {
             File photo = File.createTempFile("VBDCP_EMP_", ".jpg", dir);
             cameraUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", photo);
             camera.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, cameraUri);
-            camera.putExtra("android.intent.extras.CAMERA_FACING", front ? 1 : 0);
-            camera.putExtra("android.intent.extra.USE_FRONT_CAMERA", front);
-            camera.putExtra("android.intent.extras.LENS_FACING", front ? 0 : 1);
             camera.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivityForResult(camera, FILE_CHOOSER);
         } catch (Exception e) {
