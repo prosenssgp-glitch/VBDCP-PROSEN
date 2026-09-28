@@ -920,9 +920,14 @@ document.addEventListener('contextmenu',function(e){
   </div>
 </div>
 <script type="module">
-import {initializeApp} from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
-import {getFirestore,collection,addDoc,getDocs,deleteDoc,doc,query,where,orderBy,limit,serverTimestamp,updateDoc,setDoc,onSnapshot} from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
-import {getAuth,signInAnonymously} from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+/* Firebase is an optional cloud layer. The app shell and local attendance logic
+   must initialize even when Google CDN/Internet is unavailable. */
+let initializeApp, getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, limit, serverTimestamp, updateDoc, setDoc, onSnapshot, getAuth, signInAnonymously;
+let db=null, auth=null, firebaseApp=null;
+const offlineCall=()=>{throw new Error('Firebase offline — data ফোনে Save আছে; Internet এলে Sync হবে।')};
+initializeApp=getFirestore=getAuth=offlineCall;
+collection=addDoc=getDocs=deleteDoc=doc=query=where=orderBy=limit=serverTimestamp=updateDoc=setDoc=onSnapshot=signInAnonymously=offlineCall;
+let authReady=Promise.resolve(false);
 const firebaseConfig = {
   apiKey: "AIzaSyCH6m_mCrwzaJVdK8f-KOoqAwwnB7BnSbQ",
   authDomain: "only-vct.firebaseapp.com",
@@ -932,9 +937,38 @@ const firebaseConfig = {
   appId: "1:403621768429:web:2e81bf39bf0bebf72270e4",
   measurementId: "G-FB7EPDF91M"
 };
-const app=initializeApp(firebaseConfig),db=getFirestore(app),auth=getAuth(app);
-const authReady=signInAnonymously(auth).then(r=>r).catch(e=>{console.error("Anonymous sign-in failed:",e);setTimeout(()=>window.showFirebaseProblem?.("Firebase সংযোগ পাওয়া যাচ্ছে না। আপনার ফোনের ডেটা ফোনেই নিরাপদে Save থাকবে; Internet ঠিক হলে আবার Sync হবে।",e),0);throw e;});
-window.db=db;window.authReady=authReady;window.collection=collection;window.addDoc=addDoc;window.getDocs=getDocs;window.doc=doc;window.setDoc=setDoc;window.updateDoc=updateDoc;window.deleteDoc=deleteDoc;window.onSnapshot=onSnapshot;window.query=query;window.where=where;
+let cloudConnecting=null;
+async function connectFirebase(){
+  if(cloudConnecting)return cloudConnecting;
+  cloudConnecting=(async()=>{
+    const [appMod,fsMod,authMod]=await Promise.all([
+      import("https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js"),
+      import("https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js")
+    ]);
+    initializeApp=appMod.initializeApp;
+    ({getFirestore,collection,addDoc,getDocs,deleteDoc,doc,query,where,orderBy,limit,serverTimestamp,updateDoc,setDoc,onSnapshot}=fsMod);
+    ({getAuth,signInAnonymously}=authMod);
+    firebaseApp=firebaseApp||initializeApp(firebaseConfig);
+    db=getFirestore(firebaseApp);auth=getAuth(firebaseApp);
+    window.db=db;window.collection=collection;window.addDoc=addDoc;window.getDocs=getDocs;window.doc=doc;window.setDoc=setDoc;window.updateDoc=updateDoc;window.deleteDoc=deleteDoc;window.onSnapshot=onSnapshot;window.query=query;window.where=where;
+    authReady=signInAnonymously(auth).then(r=>r).catch(e=>{console.warn("Firebase auth unavailable:",e);throw e;});
+    window.authReady=authReady;
+    await authReady;
+    window.dispatchEvent(new CustomEvent('vbdcp-firebase-ready'));
+    return true;
+  })().catch(e=>{
+    console.warn("Firebase connection unavailable; app remains local-first:",e);
+    cloudConnecting=null;
+    setTimeout(()=>window.showFirebaseProblem?.("Firebase এখন পাওয়া যাচ্ছে না। আপনার এন্ট্রি ফোনে Save থাকবে; Internet এলে Sync হবে।",e),0);
+    return false;
+  });
+  return cloudConnecting;
+}
+window.db=db;window.authReady=authReady;
+window.addEventListener('online',()=>{connectFirebase().then(ok=>{if(ok){syncPendingAttendance?.().catch(()=>{});syncAllPendingData?.().catch(()=>{});}});});
+connectFirebase();
+
 const $=id=>document.getElementById(id);
 const WORKERS=["লালন পাল","প্রতুল দলুই","লাল টুডু","সুভাষ দাস","সৌতম দাস","সুকুমার রানা"]; window.WORKERS=WORKERS;
 const WORK_KEY="vct_work_sessions_v2";
@@ -2915,6 +2949,46 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
+
+<script id="vbdcp-worker-selection-reliable">
+/* Capture taps on worker names before other listeners; keep visible display and
+   hidden select in sync so Attendance submit reads the selected worker. */
+(function(){
+  function selectFallback(name){
+    const select=document.getElementById('worker');
+    const display=document.getElementById('selectedWorkerDisplay');
+    if(!select||!name)return;
+    select.value=name;
+    select.setAttribute('data-selected-worker',name);
+    if(display)display.textContent=name;
+    document.getElementById('workerAccessList')?.classList.remove('open');
+    const toggle=document.getElementById('workerPickerToggle');
+    if(toggle)toggle.textContent='👤 '+name+' ▾';
+    document.getElementById('selectedWorkerLock')?.removeAttribute('disabled');
+    document.getElementById('selectedWorkerMsg')?.removeAttribute('disabled');
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    window.dispatchEvent(new Event('vbdcp-worker-selected'));
+  }
+  document.addEventListener('click',function(e){
+    const button=e.target?.closest?.('[data-select-worker]');
+    if(!button)return;
+    const name=button.getAttribute('data-select-worker');
+    if(!name)return;
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    if(typeof window.selectWorkerSecure==='function'){
+      Promise.resolve(window.selectWorkerSecure(name)).then(()=>{
+        const select=document.getElementById('worker');
+        if(select&&select.value!==name)selectFallback(name);
+        else{
+          document.getElementById('workerAccessList')?.classList.remove('open');
+          window.dispatchEvent(new Event('vbdcp-worker-selected'));
+        }
+      }).catch(err=>{console.warn('Worker selection fallback:',err);selectFallback(name);});
+    }else selectFallback(name);
+  },true);
+})();
+</script>
+
 </body>
 <style id="v19-lock-color-only-fix">
 /* V19: keep worker cards neutral; color only lock state and Today Attendance worker name. */
