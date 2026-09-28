@@ -881,6 +881,7 @@ label.label-invalid{color:#ff6868!important}
 </div>
 <script type="module">
 let db=null,auth=null,authReady=Promise.reject(new Error('Firebase offline'));
+let initializeApp,getFirestore,getAuth,signInAnonymously;
 let collection,addDoc,getDocs,deleteDoc,doc,query,where,orderBy,limit,serverTimestamp,updateDoc,setDoc,onSnapshot;
 const firebaseUnavailable=()=>new Error('Firebase/Internet unavailable; এই কাজটি অনলাইনে করতে হবে।');
 try {
