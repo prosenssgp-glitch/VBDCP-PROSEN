@@ -889,9 +889,8 @@ label.label-invalid{color:#ff6868!important}
       </div>
     </div>
     <div class="field-camera-toolbar">
-      <button type="button" id="fieldGpsModeBtn" onclick="selectFieldCamera('gps')">📍 GPS Camera</button>
-      <button type="button" id="fieldNormalModeBtn" onclick="selectFieldCamera('normal')">📷 Normal Camera</button>
-       <button type="button" class="field-capture-btn" onclick="captureFieldPhoto()">📸 Capture</button>
+      <button type="button" id="fieldGpsModeBtn" onclick="selectFieldCamera('gps')">📍 GPS Camera (GPS বাধ্যতামূলক)</button>
+      <button type="button" class="field-capture-btn" onclick="captureFieldPhoto()">📸 Capture</button>
     </div>
     <div id="fieldCameraStatus" class="status">📷 সরাসরি Camera দিয়ে ছবি তুলুন।</div>
     <div class="field-camera-count-row"><b>মোট ছবি: <span id="fieldCameraCount">0</span></b><span>একবারে একটি ছবি তুলে যত খুশি যোগ করতে পারবেন</span></div>
@@ -3025,7 +3024,7 @@ if('serviceWorker' in navigator){
   let fieldPhotos=[];
   let cameraOpen=false;
   let fieldCameraScrollY=0;
-  let fieldCaptureMode='normal';
+  let fieldCaptureMode='gps';
   let fieldStream=null;
   let gpsWatchId=null, latestGpsFix=null, gpsAreaRequest=0;
   function stopGpsWatch(){if(gpsWatchId!==null&&navigator.geolocation){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null}}
@@ -3176,14 +3175,13 @@ if('serviceWorker' in navigator){
     n?.classList.toggle('field-mode-active',fieldCaptureMode==='normal');
   }
   window.selectFieldCamera=function(mode){
-    fieldCaptureMode=mode==='gps'?'gps':'normal';
+    fieldCaptureMode='gps';
     updateFieldCameraModeUI();
-    if(fieldCaptureMode==='gps'){updateGpsLiveOverlay({});refreshGpsLiveOverlay();}
-    else {stopGpsWatch();updateGpsLiveOverlay({});}
-    status(fieldCaptureMode==='gps'?'📍 GPS Camera selected — live location স্থির হলে Capture করুন।':'📷 Normal Camera selected — এখন Capture চাপুন।','success');
+    fieldCaptureMode='gps';updateGpsLiveOverlay({});refreshGpsLiveOverlay();
+    status('📍 GPS বাধ্যতামূলক। অবস্থান না পাওয়া পর্যন্ত ছবি সংরক্ষণ হবে না।','success');
   };
   window.captureFieldPhoto=async function(){
-    const mode=fieldCaptureMode;
+    const mode='gps';
     try{
       if(!fieldStream||!fieldStream.active)await openFieldStream();
       const v=$('fieldCameraVideo');await waitForVideoReady(v);
