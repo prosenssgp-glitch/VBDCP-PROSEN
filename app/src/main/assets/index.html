@@ -980,10 +980,12 @@ async function getFreshGPS(){
     throw new Error('GPS চালাতে HTTPS অথবা localhost দরকার। Localhost Lite-এ http://localhost:8080 খুলুন; 100.xx.xx.xx:8080 ঠিকানায় Chrome GPS permission দেয় না।');
   }
   const get=(opts)=>new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,opts));
+  // Keep submit responsive: try a precise fix briefly, then accept a recent
+  // lower-accuracy fix rather than blocking attendance for up to 135 seconds.
   try{
-    return await get({enableHighAccuracy:true,timeout:90000,maximumAge:0});
+    return await get({enableHighAccuracy:true,timeout:12000,maximumAge:0});
   }catch(first){
-    return await get({enableHighAccuracy:false,timeout:45000,maximumAge:10000});
+    return await get({enableHighAccuracy:false,timeout:5000,maximumAge:10000});
   }
 }
 
@@ -1185,7 +1187,9 @@ window.saveAttendance=async()=>{
     const startLocationNumber=String(session.startLocationNumber||'');
     const startVillage=String(session.startVillage||'');
     const startPlaceName=String(session.startPlaceName||startVillage||'GPS এলাকা');
-    const submitPlaceName=(await reverseGeocodeGPS(lat,lng))||submitVillage||'GPS এলাকা';
+    // The selected village is already known. Do not wait on external reverse
+    // geocoding before writing the local attendance record.
+    const submitPlaceName=submitVillage||'GPS এলাকা';
     const locationMismatch=!!(startVillage && submitVillage && (startVillage!==submitVillage || startLocationNumber!==submitLocationNumber));
     const locationDistanceMeters=(session.startLatitude!=null&&session.startLongitude!=null&&lat!=null&&lng!=null)?Math.round(haversineMeters(session.startLatitude,session.startLongitude,lat,lng)):null;
     const locationDistanceKm=locationDistanceMeters!=null?Math.round((locationDistanceMeters/1000)*100)/100:null;
