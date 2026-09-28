@@ -3166,7 +3166,7 @@ if('serviceWorker' in navigator){
       if(gpsMeta){lat=gpsMeta.lat;lng=gpsMeta.lng;accuracy=gpsMeta.accuracy;area=gpsMeta.area||await reverseArea(lat,lng)}
       else {const fix=await bestGpsFix();lat=fix.lat;lng=fix.lng;accuracy=fix.accuracy;area=await reverseArea(lat,lng)}
     }
-    const m={lat,lng,accuracy,area,capturedAt:gpsMeta?.capturedAt||new Date()};const out=await makeGpsImage(blob,m);const id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());const photo={id,blob:out,mode:'gps',...m,createdAt:new Date().toISOString(),selected:false};await storeFieldPhoto(photo);photo.url=URL.createObjectURL(out);fieldPhotos.push(photo);renderFieldPhotos();status(`✅ GPS ছবি অ্যাপের ভেতরে সংরক্ষিত হয়েছে। মোট ${fieldPhotos.length}টি ছবি।`,'success');
+    const m={lat,lng,accuracy,area,capturedAt:gpsMeta?.capturedAt||new Date()};const out=await makeGpsImage(blob,m);const id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());const photo={id,blob:out,mode:'gps',...m,createdAt:new Date().toISOString(),selected:false};await storeFieldPhoto(photo);photo.url=URL.createObjectURL(out);fieldPhotos.push(photo);renderFieldPhotos();try{const gallery=await saveFieldPhotoToGallery(out,id);status(gallery.saved?`✅ ছবি অ্যাপ ও ফোনের Gallery-র Pictures/VBDCP ফোল্ডারে সংরক্ষিত হয়েছে। মোট ${fieldPhotos.length}টি ছবি।`:`✅ ছবি অ্যাপের ভেতরে সংরক্ষিত হয়েছে। মোট ${fieldPhotos.length}টি ছবি।`,'success');}catch(e){console.warn('Gallery save failed; app copy retained',e);status('⚠️ অ্যাপের ভেতরে ছবি আছে, কিন্তু Gallery-তে রাখা যায়নি: '+(e.message||e),'error');}
   }
   async function openFieldStream(){
     if(fieldStream&&fieldStream.active&&$('fieldCameraVideo')?.srcObject===fieldStream)return;
