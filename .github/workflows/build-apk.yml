@@ -1,4 +1,4 @@
-name: Build VBDCP Android APK
+name: Build VBDCP signed Android APK
 
 on:
   workflow_dispatch:
@@ -25,12 +25,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Build debug APK from current app source
-        run: gradle --no-daemon :app:assembleDebug
-      - name: Upload APK
+      - name: Verify release signing inputs
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          test -f vbdcp-release.keystore || { echo "::error::Release keystore is missing"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "::error::Add the repository Actions secret KEYSTORE_PASSWORD"; exit 1; }
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: VBDCP-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: VBDCP-Android-v1.9-release
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
