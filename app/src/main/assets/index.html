@@ -1784,7 +1784,7 @@ function updateConnectionStatus(force){
   el.className='connection-status';
 }
 window.addEventListener('offline',()=>{updateConnectionStatus();__firebaseProblemShown=false;});
-window.addEventListener('online',()=>{updateConnectionStatus('firebase-ok');setTimeout(()=>syncAllPendingData?.().catch(()=>{}),700);});
+window.addEventListener('online',()=>{updateConnectionStatus();setTimeout(()=>syncAllPendingData?.().catch(()=>{}),700);});
 updateConnectionStatus();
 window.alert=(message)=>{
  const text=String(message||'');
