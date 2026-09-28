@@ -3161,7 +3161,7 @@ if('serviceWorker' in navigator){
       if(gpsMeta){lat=gpsMeta.lat;lng=gpsMeta.lng;accuracy=gpsMeta.accuracy;area=gpsMeta.area||await reverseArea(lat,lng)}
       else {const fix=await bestGpsFix();lat=fix.lat;lng=fix.lng;accuracy=fix.accuracy;area=await reverseArea(lat,lng)}
     }
-    const m={lat,lng,accuracy,area,capturedAt:gpsMeta?.capturedAt||new Date()};const out=await makeGpsImage(blob,m);const id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());const photo={id,blob:out,mode:'gps',...m,createdAt:new Date().toISOString(),selected:false};await storeFieldPhoto(photo);photo.url=URL.createObjectURL(out);fieldPhotos.push(photo);renderFieldPhotos();status(`✅ GPS ছবি ফোনে সংরক্ষিত হয়েছে। মোট ${fieldPhotos.length}টি ছবি।`,'success');
+    const m={lat,lng,accuracy,area,capturedAt:gpsMeta?.capturedAt||new Date()};const out=await makeGpsImage(blob,m);const id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());const photo={id,blob:out,mode:'gps',...m,createdAt:new Date().toISOString(),selected:false};await storeFieldPhoto(photo);photo.url=URL.createObjectURL(out);fieldPhotos.push(photo);renderFieldPhotos();status(`✅ GPS ছবি অ্যাপের ভেতরে সংরক্ষিত হয়েছে। মোট ${fieldPhotos.length}টি ছবি।`,'success');
   }
   async function openFieldStream(){
     if(fieldStream&&fieldStream.active&&$('fieldCameraVideo')?.srcObject===fieldStream)return;
@@ -3189,19 +3189,19 @@ if('serviceWorker' in navigator){
   window.captureFieldPhoto=async function(){
     const mode='gps';
     try{
+      status('📍 GPS অবস্থান নিশ্চিত করা হচ্ছে…','status');
+      const fix=await bestGpsFix();
+      if(!Number.isFinite(Number(fix.lat))||!Number.isFinite(Number(fix.lng))||!Number.isFinite(Number(fix.accuracy)))throw new Error('GPS অবস্থান পাওয়া যায়নি। Location চালু করে খোলা জায়গায় আবার চেষ্টা করুন।');
+      if(Number(fix.accuracy)>150)status(`📍 GPS accuracy ${Math.round(fix.accuracy)}m — ছবি তোলার আগে আরও নির্ভুল অবস্থানের জন্য অপেক্ষা করুন।`,'status');
       if(!fieldStream||!fieldStream.active)await openFieldStream();
       const v=$('fieldCameraVideo');await waitForVideoReady(v);
       await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      const capturedAt=new Date();
       const w=v.videoWidth,h=v.videoHeight;
       const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);
       const blob=await canvasBlob(c,.95);
-      let captureGps=null;
-      if(mode==='gps'){
-        const fix=await bestGpsFix();
-        captureGps={...fix,capturedAt:new Date()};
-        updateGpsLiveOverlay(captureGps);
-        if(fix.accuracy>150)status(`⚠️ GPS accuracy প্রায় ${Math.round(fix.accuracy)}m — আরও নির্ভুল অবস্থানের জন্য খোলা জায়গায় কিছুক্ষণ অপেক্ষা করুন।`,'status');
-      }
+      const captureGps={...fix,capturedAt};
+      updateGpsLiveOverlay(captureGps);
       await processFieldBlob(mode,blob,captureGps);
     }catch(e){console.error(e);status('❌ ছবি তোলা যায়নি: '+(e?.message||e),'error')}
   };
