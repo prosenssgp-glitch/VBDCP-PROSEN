@@ -3209,3 +3209,22 @@ function stopStream(stream){if(stream){stream.getTracks().forEach(t=>{try{t.stop
   };
 })();
 </script>
+
+<style id="vbdcp-disable-worker-picker-pink-flash">
+/* Keep worker placeholder neutral during startup/touch; no pink flash. */
+#workerPickerToggle,
+#workerPickerToggle:active,
+#workerPickerToggle.touch-active,
+#workerPickerToggle:focus,
+#workerPickerToggle:focus-visible {
+  background:linear-gradient(145deg,#42647b,#0a131b)!important;
+  border-color:#7899ae!important;
+  color:#fff!important;
+  box-shadow:inset 2px 2px 6px #a8c8dc66,inset -3px -3px 7px #000,0 7px 15px #000!important;
+  text-shadow:none!important;
+  filter:none!important;
+  transform:none!important;
+  outline:none!important;
+}
+#selectedWorkerDisplay {animation:none!important;transition:none!important}
+</style>
