@@ -3003,7 +3003,7 @@ if('serviceWorker' in navigator){
  const MAIN_PIN='9641', DEFAULT_SUB_PIN='731201';
  const PIN_KEY='vbdcp_admin_sub_pin_v1', PERM_KEY='vbdcp_admin_sub_permissions_v1';
  let role='';
- const defaults={workerMessages:true,villageMeta:true};
+ const defaults={workerMessages:false,villageMeta:false,workerDashboard:false,attendanceSummary:false};
  function subPin(){try{return localStorage.getItem(PIN_KEY)||DEFAULT_SUB_PIN}catch(e){return DEFAULT_SUB_PIN}}
  function perms(){try{return {...defaults,...JSON.parse(localStorage.getItem(PERM_KEY)||'{}')}}catch(e){return {...defaults}}}
  function allowed(k){return role==='main'||(role==='sub'&&!!perms()[k])}
@@ -3012,14 +3012,15 @@ if('serviceWorker' in navigator){
   let el=document.getElementById('adminSubAccessSettings');if(el)return;
   const area=document.getElementById('adminArea');if(!area)return;
   el=document.createElement('div');el.id='adminSubAccessSettings';el.className='prosen-admin-card';
-  el.innerHTML='<h3>🔐 Sub Admin Access</h3><p>সাব Admin-এর পাসওয়ার্ড ও অনুমতি নির্ধারণ করুন।</p><label>নতুন Sub PIN <input id="adminNewSubPin" type="password" inputmode="numeric" placeholder="নতুন PIN (কমপক্ষে ৪ সংখ্যা)"></label><label><input type="checkbox" id="subAllowMessages" checked> কর্মীদের Message পাঠাতে পারবে</label><label><input type="checkbox" id="subAllowVillageMeta" checked> গ্রামের কাজের বিবরণ ও রং পরিবর্তন করতে পারবে</label><button type="button" id="saveSubAccess">💾 Sub Admin সেটিং Save</button><div id="subAccessStatus" class="status"></div>';
+  el.innerHTML='<h3>🔐 Sub Admin Access</h3><p>সাব Admin-এর পাসওয়ার্ড ও অনুমতি নির্ধারণ করুন।</p><label>নতুন Sub PIN <input id="adminNewSubPin" type="password" inputmode="numeric" placeholder="নতুন PIN (কমপক্ষে ৪ সংখ্যা)"></label><label><input type="checkbox" id="subAllowMessages"> কর্মীদের Message পাঠাতে পারবে</label><label><input type="checkbox" id="subAllowVillageMeta"> গ্রামের কাজের বিবরণ ও রং পরিবর্তন করতে পারবে</label><label><input type="checkbox" id="subAllowDashboard"> কর্মীর Dashboard দেখতে পারবে</label><label><input type="checkbox" id="subAllowAttendanceSummary"> Attendance Summary ও কর্মীদের Attendance রেকর্ড দেখতে পারবে</label><button type="button" id="saveSubAccess">💾 Sub Admin সেটিং Save</button><div id="subAccessStatus" class="status"></div>';
   area.insertBefore(el,area.firstChild);
   document.getElementById('saveSubAccess').addEventListener('click',()=>{
     const pin=document.getElementById('adminNewSubPin').value.trim();
     if(pin&&!/^\d{4,12}$/.test(pin)){document.getElementById('subAccessStatus').textContent='PIN ৪–১২ সংখ্যার হতে হবে।';return}
     if(pin)localStorage.setItem(PIN_KEY,pin);
-    const p={workerMessages:document.getElementById('subAllowMessages').checked,villageMeta:document.getElementById('subAllowVillageMeta').checked};
+    const p={workerMessages:document.getElementById('subAllowMessages').checked,villageMeta:document.getElementById('subAllowVillageMeta').checked,workerDashboard:document.getElementById('subAllowDashboard').checked,attendanceSummary:document.getElementById('subAllowAttendanceSummary').checked};
     localStorage.setItem(PERM_KEY,JSON.stringify(p));
+    applyRoleUI();
     document.getElementById('adminNewSubPin').value='';
     document.getElementById('subAccessStatus').textContent='✅ Sub Admin PIN ও Access Save হয়েছে।';
   });
@@ -3030,9 +3031,9 @@ if('serviceWorker' in navigator){
   const sub=role==='sub';
   hide(document.getElementById('adminSubAccessSettings'),sub);
   hide(area.querySelector('.prosen-admin-card'),sub);
-  hide(area.querySelector('.admin-attendance-filter-card'),sub);
-  ['adminSummary','liveWorkList','adminCount'].forEach(id=>hide(document.getElementById(id),sub));
-  hide(area.querySelector('#adminTable')?.parentElement,sub);
+  hide(area.querySelector('.admin-attendance-filter-card'),sub&&!allowed('attendanceSummary'));
+  ['adminSummary','liveWorkList','adminCount'].forEach(id=>hide(document.getElementById(id),sub&&!allowed('attendanceSummary')));
+  hide(area.querySelector('#adminTable')?.parentElement,sub&&!allowed('attendanceSummary'));
   const loc=area.querySelector('.location-admin');
   if(loc){
    hide(loc.querySelector('.location-admin-row'),sub);
@@ -3050,6 +3051,8 @@ if('serviceWorker' in navigator){
    });
   }
   const title=document.getElementById('adminMessageSectionTitle');hide(title,!allowed('workerMessages'));
+  hide(document.querySelector('#mainMenu [data-tab="workerDashboard"]'),sub&&!allowed('workerDashboard'));
+  hide(document.getElementById('workerDashboard'),sub&&!allowed('workerDashboard'));
  }
  const oldRender=window.renderAdminWorkerSettings;
  if(typeof oldRender==='function')window.renderAdminWorkerSettings=function(){oldRender();applyRoleUI()};
