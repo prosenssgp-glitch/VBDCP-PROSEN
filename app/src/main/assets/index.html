@@ -2997,6 +2997,94 @@ if('serviceWorker' in navigator){
 })();
 </script>
 
+
+<script id="vbdcp-admin-subrole">
+(function(){
+ const MAIN_PIN='9641', DEFAULT_SUB_PIN='731201';
+ const PIN_KEY='vbdcp_admin_sub_pin_v1', PERM_KEY='vbdcp_admin_sub_permissions_v1';
+ let role='';
+ const defaults={workerMessages:true,villageMeta:true};
+ function subPin(){try{return localStorage.getItem(PIN_KEY)||DEFAULT_SUB_PIN}catch(e){return DEFAULT_SUB_PIN}}
+ function perms(){try{return {...defaults,...JSON.parse(localStorage.getItem(PERM_KEY)||'{}')}}catch(e){return {...defaults}}}
+ function allowed(k){return role==='main'||(role==='sub'&&!!perms()[k])}
+ function setRole(r){role=r;window.__vbdcpAdminRole=r;window.__vbdcpAdminSession=true;applyRoleUI();}
+ function injectMainControls(){
+  let el=document.getElementById('adminSubAccessSettings');if(el)return;
+  const area=document.getElementById('adminArea');if(!area)return;
+  el=document.createElement('div');el.id='adminSubAccessSettings';el.className='prosen-admin-card';
+  el.innerHTML='<h3>🔐 Sub Admin Access</h3><p>সাব Admin-এর পাসওয়ার্ড ও অনুমতি নির্ধারণ করুন।</p><label>নতুন Sub PIN <input id="adminNewSubPin" type="password" inputmode="numeric" placeholder="নতুন PIN (কমপক্ষে ৪ সংখ্যা)"></label><label><input type="checkbox" id="subAllowMessages" checked> কর্মীদের Message পাঠাতে পারবে</label><label><input type="checkbox" id="subAllowVillageMeta" checked> গ্রামের কাজের বিবরণ ও রং পরিবর্তন করতে পারবে</label><button type="button" id="saveSubAccess">💾 Sub Admin সেটিং Save</button><div id="subAccessStatus" class="status"></div>';
+  area.insertBefore(el,area.firstChild);
+  document.getElementById('saveSubAccess').addEventListener('click',()=>{
+    const pin=document.getElementById('adminNewSubPin').value.trim();
+    if(pin&&!/^\d{4,12}$/.test(pin)){document.getElementById('subAccessStatus').textContent='PIN ৪–১২ সংখ্যার হতে হবে।';return}
+    if(pin)localStorage.setItem(PIN_KEY,pin);
+    const p={workerMessages:document.getElementById('subAllowMessages').checked,villageMeta:document.getElementById('subAllowVillageMeta').checked};
+    localStorage.setItem(PERM_KEY,JSON.stringify(p));
+    document.getElementById('adminNewSubPin').value='';
+    document.getElementById('subAccessStatus').textContent='✅ Sub Admin PIN ও Access Save হয়েছে।';
+  });
+ }
+ function hide(el,yes){if(el)el.style.display=yes?'none':''}
+ function applyRoleUI(){
+  const area=document.getElementById('adminArea');if(!area)return;
+  const sub=role==='sub';
+  hide(document.getElementById('adminSubAccessSettings'),sub);
+  hide(area.querySelector('.prosen-admin-card'),sub);
+  hide(area.querySelector('.admin-attendance-filter-card'),sub);
+  ['adminSummary','liveWorkList','adminCount'].forEach(id=>hide(document.getElementById(id),sub));
+  hide(area.querySelector('#adminTable')?.parentElement,sub);
+  const loc=area.querySelector('.location-admin');
+  if(loc){
+   hide(loc.querySelector('.location-admin-row'),sub);
+   hide(document.getElementById('pendingVillages'),sub);
+   const saveConfig=loc.querySelector('button[onclick="saveLocationConfig()"]');hide(saveConfig,sub);
+   loc.querySelectorAll('.location-admin-actions,.loc-edit,.loc-delete').forEach(x=>hide(x,sub));
+   loc.querySelectorAll('input[id^="vmsg-"],select[id^="vcolor-"],button[onclick^="saveVillageMeta"]').forEach(x=>hide(x,!allowed('villageMeta')));
+   hide(loc.querySelector('.admin-note'),sub);
+  }
+  const rows=document.getElementById('adminWorkerSettingsList');
+  if(rows){
+   rows.querySelectorAll('.admin-worker-row').forEach(row=>{
+    row.querySelectorAll('input, label, .worker-admin-save').forEach(x=>hide(x,sub));
+    row.querySelectorAll('.worker-admin-msg-btn').forEach(x=>hide(x,!allowed('workerMessages')));
+   });
+  }
+  const title=document.getElementById('adminMessageSectionTitle');hide(title,!allowed('workerMessages'));
+ }
+ const oldRender=window.renderAdminWorkerSettings;
+ if(typeof oldRender==='function')window.renderAdminWorkerSettings=function(){oldRender();applyRoleUI()};
+ const oldLoc=window.renderLocationAdmin;
+ if(typeof oldLoc==='function')window.renderLocationAdmin=function(){oldLoc();applyRoleUI()};
+ const oldPicker=window.renderLocationPicker;
+ if(typeof oldPicker==='function')window.renderLocationPicker=function(){oldPicker();applyRoleUI()};
+ const originalOpen=window.openAdmin;
+ window.openAdmin=function(){
+  const pin=document.getElementById('adminPin')?.value||'';
+  const msg=document.getElementById('adminMsg');
+  if(pin===MAIN_PIN){setRole('main');injectMainControls();if(msg){msg.className='success';msg.textContent='✅ Main Admin Login সফল হয়েছে';}return originalOpen();}
+  if(pin===subPin()){
+   setRole('sub');if(msg){msg.className='success';msg.textContent='✅ Sub Admin Login সফল হয়েছে — সীমিত Access';}
+   const area=document.getElementById('adminArea');if(area)area.style.display='block';
+   try{renderAdminWorkerSettings()}catch(e){}
+   try{renderLocationAdmin()}catch(e){}
+   Promise.resolve().then(()=>loadLocationConfigs()).then(()=>{renderLocationAdmin();renderLocationPicker();}).catch(()=>{});
+   Promise.resolve().then(()=>loadWorkerMessages()).catch(()=>{});
+   applyRoleUI();setTimeout(()=>area?.scrollIntoView({behavior:'smooth',block:'start'}),50);return;
+  }
+  if(msg){msg.className='error';msg.textContent='❌ ভুল Admin PIN';}
+ };
+ function requireMain(){if(role!=='main'){uiAlert('এই কাজটি শুধু Main Admin করতে পারবেন।','অনুমতি নেই','🔒');return false}return true}
+ const guarded=['saveWorkerAdminSetting','editLocationConfig','editVillage','deleteVillage','deleteLocationConfig','nextVillage','saveLocationConfig','openAdminReset','runFirebaseDiagnostic','recoverProsenFromFirebase','deleteSelectedAttendance','deleteAttendanceByMonth'];
+ guarded.forEach(name=>{const fn=window[name];if(typeof fn==='function')window[name]=function(...args){if(!requireMain())return;return fn.apply(this,args)}});
+ const meta=window.saveVillageMeta;
+ if(typeof meta==='function')window.saveVillageMeta=async function(...args){if(!allowed('villageMeta'))return uiAlert('গ্রামের কাজ/রং পরিবর্তনের অনুমতি নেই।');return meta.apply(this,args)};
+ const msgFn=window.adminMessageWorker;
+ if(typeof msgFn==='function')window.adminMessageWorker=function(...args){if(!allowed('workerMessages'))return uiAlert('কর্মীদের Message পাঠানোর অনুমতি নেই।');return msgFn.apply(this,args)};
+ const obs=new MutationObserver(()=>{if(role)applyRoleUI()});
+ document.addEventListener('DOMContentLoaded',()=>{const area=document.getElementById('adminArea');if(area)obs.observe(area,{childList:true,subtree:true});});
+})();
+</script>
+
 </body>
 <style id="v19-lock-color-only-fix">
 /* V19: keep worker cards neutral; color only lock state and Today Attendance worker name. */
