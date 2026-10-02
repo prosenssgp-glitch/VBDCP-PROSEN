@@ -995,6 +995,19 @@ async function syncWorkSession(worker,session){
     return true;
   }catch(e){console.warn('Work session cloud sync pending:',worker,e);return false;}
 }
+async function applySharedWorkSession(worker,cloud){
+  if(!worker||!cloud)return false;
+  const x=sessions(),local=x[worker];
+  if(cloud.status==='active'&&validWorkSession(cloud)){
+    // Never replace a newer offline Start with an older cloud copy.
+    if(local&&local.cloudSyncStatus==='pending'&&local.startedAt!==cloud.startedAt)return false;
+    x[worker]={...cloud,cloudSyncStatus:'synced'};saveSessions(x);renderWork();return true;
+  }
+  if(cloud.status==='submitted'&&local&&((local.sessionId&&local.sessionId===cloud.sessionId)||local.startedAt===cloud.startedAt)){
+    delete x[worker];saveSessions(x);renderWork();
+  }
+  return false;
+}
 async function refreshSharedWorkSession(worker){
   if(!worker||!db||workSyncInFlight.has(worker))return false;
   workSyncInFlight.add(worker);
@@ -1002,21 +1015,21 @@ async function refreshSharedWorkSession(worker){
     await authReady;
     const snap=await getDoc(doc(db,'workSessions',workDocId(worker)));
     if(!snap.exists())return false;
-    const cloud=snap.data()||{};
-    if(cloud.status==='active'&&validWorkSession(cloud)){
-      const x=sessions();x[worker]={...cloud,cloudSyncStatus:'synced'};saveSessions(x);renderWork();return true;
-    }
-    if(cloud.status==='submitted'){
-      const x=sessions(),local=x[worker];
-      // Remove the same local Start even if it was created by an older app version
-      // without a sessionId; never clear a different, newer offline Start.
-      if(local&&((local.sessionId&&local.sessionId===cloud.sessionId)||local.startedAt===cloud.startedAt)){
-        delete x[worker];saveSessions(x);renderWork();
-      }
-    }
-    return false;
+    return await applySharedWorkSession(worker,snap.data()||{});
   }catch(e){console.warn('Shared work session fetch failed:',worker,e);return false;}
   finally{workSyncInFlight.delete(worker);}
+}
+let workSessionUnsubscribe=null,workSessionListeningFor='';
+function listenForSharedWorkSession(worker){
+  if(!worker||!db||workSessionListeningFor===worker)return;
+  if(workSessionUnsubscribe){try{workSessionUnsubscribe()}catch(e){}workSessionUnsubscribe=null;}
+  workSessionListeningFor=worker;
+  authReady.then(()=>{
+    if(!db||workSessionListeningFor!==worker)return;
+    workSessionUnsubscribe=onSnapshot(doc(db,'workSessions',workDocId(worker)),snap=>{
+      if(snap.exists())applySharedWorkSession(worker,snap.data()||{});
+    },e=>console.warn('Shared Start live listener failed:',worker,e));
+  }).catch(e=>console.warn('Shared Start listener auth pending:',e));
 }
 async function syncPendingWorkSessions(){
   const x=sessions();
@@ -1199,7 +1212,7 @@ renderWork();
 setInterval(()=>renderWork(),15000);
 window.addEventListener("load",()=>{
   renderWork();
-  const initialWorker=getSelectedWorker();if(initialWorker)refreshSharedWorkSession(initialWorker);
+  const initialWorker=getSelectedWorker();if(initialWorker){refreshSharedWorkSession(initialWorker);listenForSharedWorkSession(initialWorker);}
   setTimeout(renderWork,100);
   setTimeout(renderWork,500);
   setTimeout(renderWork,1000);
@@ -1263,9 +1276,9 @@ async function syncPendingAttendance(){
 }
 function haversineMeters(lat1,lon1,lat2,lon2){const R=6371000,rad=Math.PI/180,dLat=(lat2-lat1)*rad,dLon=(lon2-lon1)*rad,a=Math.sin(dLat/2)**2+Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(a)));}
 
-window.addEventListener('vbdcp-worker-selected',()=>{const w=getSelectedWorker();if(w)refreshSharedWorkSession(w);});
-window.addEventListener('vbdcp-firebase-ready',()=>{const w=getSelectedWorker();if(w)refreshSharedWorkSession(w);syncPendingWorkSessions();});
-window.addEventListener('online',()=>{syncPendingWorkSessions().catch(()=>{});});
+window.addEventListener('vbdcp-worker-selected',()=>{const w=getSelectedWorker();if(w){refreshSharedWorkSession(w);listenForSharedWorkSession(w);}});
+window.addEventListener('vbdcp-firebase-ready',()=>{const w=getSelectedWorker();if(w){refreshSharedWorkSession(w);listenForSharedWorkSession(w);}syncPendingWorkSessions();syncPendingWorkSessionCloses();});
+window.addEventListener('online',()=>{syncPendingWorkSessions().catch(()=>{});syncPendingWorkSessionCloses().catch(()=>{});const w=getSelectedWorker();if(w)refreshSharedWorkSession(w);});
 window.saveAttendance=async()=>{
   if(!selectedLocationNumber || !selectedVillage){const a=document.getElementById("address");a.classList.add("field-invalid");setTimeout(()=>a.classList.remove("field-invalid"),900);document.getElementById("msg").className="error";document.getElementById("msg").textContent="❌ কাজের ঠিকানা নির্বাচন করুন: আগে নম্বর, তারপর গ্রাম বেছে নিন।";return;}
 
