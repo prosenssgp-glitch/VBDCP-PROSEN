@@ -1073,7 +1073,16 @@ async function syncPendingWorkSessionCloses(){
   const rows=pendingWorkCloses(),remaining=[];
   for(const item of rows){
     try{
-      await setDoc(doc(db,'workSessions',workDocId(item.worker)),item.completed,{merge:true});
+      const ref=doc(db,'workSessions',workDocId(item.worker));
+      const snap=await getDoc(ref);
+      const cloud=snap.exists()?(snap.data()||{}):null;
+      const closedId=item.completed.sessionId||item.completed.startedAt;
+      const cloudId=cloud&&(cloud.sessionId||cloud.startedAt);
+      // A delayed offline close must never overwrite a newer Start on another phone.
+      if(cloud&&cloud.status==='active'&&cloudId&&closedId&&cloudId!==closedId){
+        continue;
+      }
+      await setDoc(ref,item.completed,{merge:true});
     }catch(e){remaining.push(item);console.warn('Shared Start close sync pending:',item.worker,e);}
   }
   savePendingWorkCloses(remaining);
