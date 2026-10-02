@@ -1025,6 +1025,28 @@ async function syncPendingWorkSessions(){
     if(q&&q.cloudSyncStatus!=='synced'&&validWorkSession(q))await syncWorkSession(worker,q);
   }
 }
+const WORK_CLOSE_KEY='vct_work_session_close_queue_v1';
+function pendingWorkCloses(){try{return JSON.parse(localStorage.getItem(WORK_CLOSE_KEY)||'[]')||[]}catch(e){return [];}}
+function savePendingWorkCloses(rows){localStorage.setItem(WORK_CLOSE_KEY,JSON.stringify(rows));}
+function queueWorkSessionClose(worker,completed){
+  const rows=pendingWorkCloses();
+  const id=completed.sessionId||completed.startedAt;
+  const next=rows.filter(r=>!(r.worker===worker&&(r.sessionId||r.startedAt)===id));
+  next.push({worker,completed});
+  savePendingWorkCloses(next);
+  syncPendingWorkSessionCloses().catch(e=>console.warn('Shared Start close remains queued:',e));
+}
+async function syncPendingWorkSessionCloses(){
+  if(!db)return;
+  try{await authReady;}catch(e){return;}
+  const rows=pendingWorkCloses(),remaining=[];
+  for(const item of rows){
+    try{
+      await setDoc(doc(db,'workSessions',workDocId(item.worker)),item.completed,{merge:true});
+    }catch(e){remaining.push(item);console.warn('Shared Start close sync pending:',item.worker,e);}
+  }
+  savePendingWorkCloses(remaining);
+}
 function clock(iso){return new Date(iso).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit",second:"2-digit",hour12:true}).toUpperCase()}
 function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function getSelectedWorker(){
@@ -1356,7 +1378,9 @@ window.saveAttendance=async()=>{
 
     // Mark the shared session submitted in the background after local attendance is safely saved.
     const completedSession={...session,status:'submitted',submittedAt:new Date().toISOString(),attendanceClientId:data.clientId};
-    authReady.then(()=>setDoc(doc(db,'workSessions',workDocId(worker)),completedSession,{merge:true})).catch(e=>console.warn('Shared work session close pending:',e));
+    // Persist the close operation before clearing local Start so offline submission
+    // cannot leave another phone showing a stale active session indefinitely.
+    queueWorkSessionClose(worker,completedSession);
     // Clear local copy immediately after local attendance save; preserve offline-first behavior.
     clearWork(worker);
 
@@ -1858,13 +1882,18 @@ async function syncLocationsToFirebase(){
 }
 async function syncAllPendingData(){
   await syncPendingWorkSessions().catch(()=>{});
+  await syncPendingWorkSessionCloses().catch(()=>{});
   await syncPendingAttendance().catch(()=>{});
   await syncPendingMessageOps().catch(()=>{});
   await syncWorkerSettingsToFirebase().catch(()=>{});
   await syncLocationsToFirebase().catch(()=>{});
 }
 window.addEventListener('online',()=>setTimeout(()=>syncAllPendingData().catch(()=>{}),500));
-setInterval(()=>syncAllPendingData().catch(()=>{}),15000);
+setInterval(()=>{
+  syncAllPendingData().catch(()=>{});
+  const selected=getSelectedWorker();
+  if(selected)refreshSharedWorkSession(selected).catch(()=>{});
+},12000);
 
 const _oldShowTab=window.showTab;
 window.showTab=function(tab){ _oldShowTab(tab); document.querySelectorAll('#mainMenu button').forEach(b=>b.classList.toggle('active-menu',b.dataset.tab===tab)); };
