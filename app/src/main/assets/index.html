@@ -922,11 +922,11 @@ document.addEventListener('contextmenu',function(e){
 <script type="module">
 /* Firebase is an optional cloud layer. The app shell and local attendance logic
    must initialize even when Google CDN/Internet is unavailable. */
-let initializeApp, getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, limit, serverTimestamp, updateDoc, setDoc, onSnapshot, getAuth, signInAnonymously;
+let initializeApp, getFirestore, collection, addDoc, getDocs, getDoc, deleteDoc, doc, query, where, orderBy, limit, serverTimestamp, updateDoc, setDoc, onSnapshot, getAuth, signInAnonymously;
 let db=null, auth=null, firebaseApp=null;
 const offlineCall=()=>{throw new Error('Firebase offline — data ফোনে Save আছে; Internet এলে Sync হবে।')};
 initializeApp=getFirestore=getAuth=offlineCall;
-collection=addDoc=getDocs=deleteDoc=doc=query=where=orderBy=limit=serverTimestamp=updateDoc=setDoc=onSnapshot=signInAnonymously=offlineCall;
+collection=addDoc=getDocs=getDoc=deleteDoc=doc=query=where=orderBy=limit=serverTimestamp=updateDoc=setDoc=onSnapshot=signInAnonymously=offlineCall;
 let authReady=Promise.resolve(false);
 const firebaseConfig = {
   apiKey: "AIzaSyCH6m_mCrwzaJVdK8f-KOoqAwwnB7BnSbQ",
@@ -947,7 +947,7 @@ async function connectFirebase(){
       import("https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js")
     ]);
     initializeApp=appMod.initializeApp;
-    ({getFirestore,collection,addDoc,getDocs,deleteDoc,doc,query,where,orderBy,limit,serverTimestamp,updateDoc,setDoc,onSnapshot}=fsMod);
+    ({getFirestore,collection,addDoc,getDocs,getDoc,deleteDoc,doc,query,where,orderBy,limit,serverTimestamp,updateDoc,setDoc,onSnapshot}=fsMod);
     ({getAuth,signInAnonymously}=authMod);
     firebaseApp=firebaseApp||initializeApp(firebaseConfig);
     db=getFirestore(firebaseApp);auth=getAuth(firebaseApp);
@@ -982,6 +982,45 @@ const WORKERS=["লালন পাল","প্রতুল দলুই","ল�
 const WORK_KEY="vct_work_sessions_v2";
 function sessions(){try{return JSON.parse(localStorage.getItem(WORK_KEY)||"{}")||{}}catch(e){return {}}}
 function saveSessions(x){localStorage.setItem(WORK_KEY,JSON.stringify(x))}
+const workSyncInFlight=new Set();
+function workDocId(worker){return encodeURIComponent(String(worker||''));}
+function validWorkSession(q){return !!(q&&q.status!=='submitted'&&q.startDate===todayKey()&&q.gpsVerified===true&&q.startedAt&&q.startLatitude!=null&&q.startLongitude!=null);}
+async function syncWorkSession(worker,session){
+  if(!worker||!session||session.startDate!==todayKey()||session.gpsVerified!==true)return false;
+  try{
+    await authReady;
+    const payload={...session,worker,status:'active',sessionId:session.sessionId||('work-'+encodeURIComponent(worker)+'-'+session.startDate+'-'+Date.parse(session.startedAt)),updatedAt:new Date().toISOString()};
+    await setDoc(doc(db,'workSessions',workDocId(worker)),payload,{merge:true});
+    const x=sessions();if(x[worker]&&x[worker].sessionId===payload.sessionId){x[worker]={...x[worker],sessionId:payload.sessionId,cloudSyncStatus:'synced'};saveSessions(x);}
+    return true;
+  }catch(e){console.warn('Work session cloud sync pending:',worker,e);return false;}
+}
+async function refreshSharedWorkSession(worker){
+  if(!worker||!db||workSyncInFlight.has(worker))return false;
+  workSyncInFlight.add(worker);
+  try{
+    await authReady;
+    const snap=await getDoc(doc(db,'workSessions',workDocId(worker)));
+    if(!snap.exists())return false;
+    const cloud=snap.data()||{};
+    if(cloud.status==='active'&&validWorkSession(cloud)){
+      const x=sessions();x[worker]={...cloud,cloudSyncStatus:'synced'};saveSessions(x);renderWork();return true;
+    }
+    if(cloud.status==='submitted'){
+      const x=sessions(),local=x[worker];
+      if(local&&local.sessionId&&local.sessionId===cloud.sessionId){delete x[worker];saveSessions(x);renderWork();}
+    }
+    return false;
+  }catch(e){console.warn('Shared work session fetch failed:',worker,e);return false;}
+  finally{workSyncInFlight.delete(worker);}
+}
+async function syncPendingWorkSessions(){
+  const x=sessions();
+  for(const worker of Object.keys(x)){
+    const q=x[worker];
+    if(q&&q.cloudSyncStatus!=='synced'&&validWorkSession(q))await syncWorkSession(worker,q);
+  }
+}
 function clock(iso){return new Date(iso).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit",second:"2-digit",hour12:true}).toUpperCase()}
 function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function getSelectedWorker(){
@@ -1007,8 +1046,8 @@ function renderWork(sel){
     return;
   }
   const q=x[worker];
-  /* Green is allowed ONLY when Start GPS coordinates were successfully captured. */
-  const valid=!!(q && q.startDate===todayKey() && q.gpsVerified===true && q.startedAt && q.startLatitude!=null && q.startLongitude!=null);
+  /* Green requires a verified same-day GPS Start, local or synced from Firebase. */
+  const valid=validWorkSession(q);
   if(q && q.startDate!==todayKey()){delete x[worker];saveSessions(x);}
   if(q && !valid){
     delete x[worker];
@@ -1092,9 +1131,13 @@ window.startWork=async enc=>{
       startLocationNumber:String(selectedLocationNumber||''),
       startVillage:String(selectedVillage||''),
       startPlaceName:gpsPlace||String(selectedVillage||'GPS এলাকা'),
-      gpsVerified:true
+      gpsVerified:true,
+      sessionId:'work-'+encodeURIComponent(w)+'-'+todayKey()+'-'+Date.now(),
+      cloudSyncStatus:'pending',
+      status:'active'
     };
     saveSessions(x);
+    syncWorkSession(w,x[w]).then(ok=>{if(ok){const st=document.getElementById("workStartGpsStatus");if(st&&getSelectedWorker()===w)st.textContent="✅ GPS সফলভাবে নেওয়া হয়েছে। ☁️ Sync হয়েছে।";}});
     if($("gps"))$("gps").textContent=`📍 Start GPS: ${x[w].startPlaceName} — ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     renderWork();
   };
@@ -1128,6 +1171,7 @@ function clearWork(w){let x=sessions();delete x[w];saveSessions(x);renderWork()}
 renderWork();
 window.addEventListener("load",()=>{
   renderWork();
+  const initialWorker=getSelectedWorker();if(initialWorker)refreshSharedWorkSession(initialWorker);
   setTimeout(renderWork,100);
   setTimeout(renderWork,500);
   setTimeout(renderWork,1000);
@@ -1191,6 +1235,9 @@ async function syncPendingAttendance(){
 }
 function haversineMeters(lat1,lon1,lat2,lon2){const R=6371000,rad=Math.PI/180,dLat=(lat2-lat1)*rad,dLon=(lon2-lon1)*rad,a=Math.sin(dLat/2)**2+Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(a)));}
 
+window.addEventListener('vbdcp-worker-selected',()=>{const w=getSelectedWorker();if(w)refreshSharedWorkSession(w);});
+window.addEventListener('vbdcp-firebase-ready',()=>{const w=getSelectedWorker();if(w)refreshSharedWorkSession(w);syncPendingWorkSessions();});
+window.addEventListener('online',()=>{syncPendingWorkSessions().catch(()=>{});});
 window.saveAttendance=async()=>{
   if(!selectedLocationNumber || !selectedVillage){const a=document.getElementById("address");a.classList.add("field-invalid");setTimeout(()=>a.classList.remove("field-invalid"),900);document.getElementById("msg").className="error";document.getElementById("msg").textContent="❌ কাজের ঠিকানা নির্বাচন করুন: আগে নম্বর, তারপর গ্রাম বেছে নিন।";return;}
 
@@ -1204,8 +1251,9 @@ window.saveAttendance=async()=>{
       msg.textContent=settingsFor(worker).password?'🔒 আগে কর্মীর নামের পাশে Lock খুলে Password দিন।':'🔒 এই কর্মীকে Admin Lock করেছেন। Admin ছাড়া Unlock করা যাবে না।';
       return;
     }
-    const session=sessions()[worker];
-    if(session?.startDate!==todayKey() || session?.gpsVerified!==true || !session?.startedAt || session.startLatitude==null || session.startLongitude==null){
+    let session=sessions()[worker];
+    if(!validWorkSession(session)){await refreshSharedWorkSession(worker);session=sessions()[worker];}
+    if(!validWorkSession(session)){
       msg.className="error";
       msg.textContent="❌ আগে গোল Start বাটনে চাপুন এবং GPS সফলভাবে নিতে দিন। GPS না পাওয়া পর্যন্ত Green হবে না এবং Attendance Submit হবে না।";
       return;
@@ -1300,7 +1348,10 @@ window.saveAttendance=async()=>{
       }
     }
 
-    // Clear immediately after local save; never wait for Firebase.
+    // Mark the shared session submitted in the background after local attendance is safely saved.
+    const completedSession={...session,status:'submitted',submittedAt:new Date().toISOString(),attendanceClientId:data.clientId};
+    authReady.then(()=>setDoc(doc(db,'workSessions',workDocId(worker)),completedSession,{merge:true})).catch(e=>console.warn('Shared work session close pending:',e));
+    // Clear local copy immediately after local attendance save; preserve offline-first behavior.
     clearWork(worker);
 
     $("worker").value="";
@@ -1800,6 +1851,7 @@ async function syncLocationsToFirebase(){
   }
 }
 async function syncAllPendingData(){
+  await syncPendingWorkSessions().catch(()=>{});
   await syncPendingAttendance().catch(()=>{});
   await syncPendingMessageOps().catch(()=>{});
   await syncWorkerSettingsToFirebase().catch(()=>{});
