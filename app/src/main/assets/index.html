@@ -1008,7 +1008,11 @@ async function refreshSharedWorkSession(worker){
     }
     if(cloud.status==='submitted'){
       const x=sessions(),local=x[worker];
-      if(local&&local.sessionId&&local.sessionId===cloud.sessionId){delete x[worker];saveSessions(x);renderWork();}
+      // Remove the same local Start even if it was created by an older app version
+      // without a sessionId; never clear a different, newer offline Start.
+      if(local&&((local.sessionId&&local.sessionId===cloud.sessionId)||local.startedAt===cloud.startedAt)){
+        delete x[worker];saveSessions(x);renderWork();
+      }
     }
     return false;
   }catch(e){console.warn('Shared work session fetch failed:',worker,e);return false;}
