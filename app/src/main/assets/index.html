@@ -1035,7 +1035,25 @@ async function syncPendingWorkSessions(){
   const x=sessions();
   for(const worker of Object.keys(x)){
     const q=x[worker];
-    if(q&&q.cloudSyncStatus!=='synced'&&validWorkSession(q))await syncWorkSession(worker,q);
+    if(!q||q.cloudSyncStatus==='synced'||!validWorkSession(q))continue;
+    try{
+      await authReady;
+      const snap=await getDoc(doc(db,'workSessions',workDocId(worker)));
+      if(snap.exists()){
+        const cloud=snap.data()||{};
+        const sameSession=(cloud.sessionId&&q.sessionId&&cloud.sessionId===q.sessionId)||cloud.startedAt===q.startedAt;
+        if(cloud.status==='submitted'&&sameSession){
+          const latest=sessions();if(latest[worker]&&latest[worker].startedAt===q.startedAt){delete latest[worker];saveSessions(latest);renderWork();}
+          continue;
+        }
+        if(cloud.status==='active'&&cloud.sessionId&&q.sessionId&&cloud.sessionId!==q.sessionId){
+          // Do not let a queued offline Start overwrite another device's active session.
+          await applySharedWorkSession(worker,cloud);
+          continue;
+        }
+      }
+      await syncWorkSession(worker,q);
+    }catch(e){console.warn('Pending Start sync will retry:',worker,e);}
   }
 }
 const WORK_CLOSE_KEY='vct_work_session_close_queue_v1';
