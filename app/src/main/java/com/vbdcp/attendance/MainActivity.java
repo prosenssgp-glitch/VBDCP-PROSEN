@@ -27,6 +27,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import androidx.webkit.WebViewAssetLoader;
 
 import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -41,6 +42,7 @@ public class MainActivity extends Activity {
     private static final int FILE_CHOOSER = 102;
     private static final int REQ_CAMERA_PERMISSION = 103;
     private WebView webView;
+    private WebViewAssetLoader assetLoader;
     private SwipeRefreshLayout swipeRefresh;
     private ValueCallback<Uri[]> fileCallback;
     private Uri cameraUri;
@@ -55,9 +57,11 @@ public class MainActivity extends Activity {
         webView = new WebView(this);
         swipeRefresh.addView(webView, new SwipeRefreshLayout.LayoutParams(-1, -1));
         setContentView(swipeRefresh);
+        assetLoader = new WebViewAssetLoader.Builder().addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this)).build();
         setupWebView();
         requestAppPermissions();
-        webView.loadUrl("https://tranquil-cupcake-5491f0.netlify.app/");
+        // Load the packaged app first: cold start works without Netlify/Internet.
+        webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
     }
 
     private void setupWebView() {
@@ -73,8 +77,8 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setSupportZoom(false);
         s.setLoadsImagesAutomatically(true);
-        // Always revalidate remote Netlify content so deployed web fixes appear on next app launch/reload.
-        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // App HTML/CSS/JS are packaged in the APK; network is only needed for cloud features.
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         swipeRefresh.setOnRefreshListener(() -> webView.reload());
         swipeRefresh.setEnabled(true);
@@ -100,7 +104,7 @@ public class MainActivity extends Activity {
             @Override public void onPermissionRequest(final android.webkit.PermissionRequest request) {
                 runOnUiThread(() -> {
                     Uri requestOrigin = request.getOrigin();
-                    if (requestOrigin == null || !"tranquil-cupcake-5491f0.netlify.app".equalsIgnoreCase(requestOrigin.getHost())) {
+                    if (requestOrigin == null || !"appassets.androidplatform.net".equalsIgnoreCase(requestOrigin.getHost())) {
                         request.deny();
                         return;
                     }
@@ -284,7 +288,7 @@ public class MainActivity extends Activity {
     private class LocalAssetClient extends WebViewClient {
         private boolean isTrustedAppUrl(Uri u) {
             return u != null && "https".equalsIgnoreCase(u.getScheme()) &&
-                "tranquil-cupcake-5491f0.netlify.app".equalsIgnoreCase(u.getHost());
+                "appassets.androidplatform.net".equalsIgnoreCase(u.getHost());
         }
         @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             Uri u=request.getUrl(); String scheme=u.getScheme();
@@ -306,6 +310,8 @@ public class MainActivity extends Activity {
         }
         @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             Uri u = request.getUrl();
+            WebResourceResponse packaged = assetLoader.shouldInterceptRequest(u);
+            if (packaged != null) return packaged;
             if ("vbdcp.local".equalsIgnoreCase(u.getHost())) {
                 String path = u.getPath(); if (path == null || path.equals("/")) path = "/index.html";
                 if (path.startsWith("/")) path = path.substring(1);

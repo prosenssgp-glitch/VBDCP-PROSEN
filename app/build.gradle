@@ -10,8 +10,8 @@ android {
         applicationId 'com.vbdcp.attendance'
         minSdk 23
         targetSdk 35
-        versionCode 9
-        versionName '1.8'
+        versionCode 11
+        versionName '2.0'
     }
 
     signingConfigs {
@@ -34,4 +34,5 @@ android {
 dependencies {
     implementation 'androidx.core:core:1.13.1'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'androidx.webkit:webkit:1.12.1'
 }
