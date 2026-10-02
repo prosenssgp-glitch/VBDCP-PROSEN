@@ -1173,6 +1173,8 @@ window.startWork=async enc=>{
 
 function clearWork(w){let x=sessions();delete x[w];saveSessions(x);renderWork()}
 renderWork();
+// Re-check date periodically so yesterday's Start turns off if the app stays open past midnight.
+setInterval(()=>renderWork(),15000);
 window.addEventListener("load",()=>{
   renderWork();
   const initialWorker=getSelectedWorker();if(initialWorker)refreshSharedWorkSession(initialWorker);
